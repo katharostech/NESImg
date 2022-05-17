@@ -1,7 +1,7 @@
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
-pub struct TemplateApp {
+pub struct NesimgGui {
     // Example stuff:
     label: String,
 
@@ -10,7 +10,7 @@ pub struct TemplateApp {
     value: f32,
 }
 
-impl Default for TemplateApp {
+impl Default for NesimgGui {
     fn default() -> Self {
         Self {
             // Example stuff:
@@ -20,11 +20,12 @@ impl Default for TemplateApp {
     }
 }
 
-impl TemplateApp {
+impl NesimgGui {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // This is also where you can customized the look at feel of egui using
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
+        cc.egui_ctx.set_visuals(egui::style::Visuals::dark());
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
@@ -36,7 +37,7 @@ impl TemplateApp {
     }
 }
 
-impl eframe::App for TemplateApp {
+impl eframe::App for NesimgGui {
     /// Called by the frame work to save state before shutdown.
     fn save(&mut self, storage: &mut dyn eframe::Storage) {
         eframe::set_value(storage, eframe::APP_KEY, self);
