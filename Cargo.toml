@@ -6,8 +6,6 @@ authors = ["Zicklag <zicklag@katharostech.com>"]
 edition = "2021"
 rust-version = "1.60"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [[bin]]
 name = "nesimg_gui"
 path = "src/main.rs"
@@ -17,9 +15,15 @@ crate-type = ["cdylib", "rlib"]
 
 
 [dependencies]
-egui = "0.18.0"
-eframe = { version = "0.18.0", features = ["persistence"] }
+egui = { git = "https://github.com/zicklag/egui.git", branch = "texture-filter-option" }
+eframe = { git = "https://github.com/zicklag/egui.git", branch = "texture-filter-option", features = ["persistence"] }
+egui_extras = { git = "https://github.com/zicklag/egui.git", branch = "texture-filter-option", features = ["image"] }
 serde = { version = "1", features = ["derive"] } # You only need this if you want app persistence
+rfd = "0.8.2"
+flume = "0.10.12"
+image = { version = "0.24.2", default-features = false, features = ["png"] }
+palette = "0.6.0"
+once_cell = "1.10.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
@@ -30,10 +34,11 @@ tracing-subscriber = "0.3"
 console_error_panic_hook = "0.1.6"
 tracing-wasm = "0.2"
 
+[profile.dev.package."*"]
+opt-level = 3
 
 [profile.release]
 opt-level = 2 # fast and small wasm
-
 
 [patch.crates-io]
 
@@ -42,5 +47,7 @@ opt-level = 2 # fast and small wasm
 # eframe = { git = "https://github.com/emilk/egui", branch = "master" }
 
 # If you fork https://github.com/emilk/egui you can test with:
-# egui = { path = "../egui/egui" }
-# eframe = { path = "../egui/eframe" }
+# egui = { path = "../../other/egui/egui" }
+# eframe = { path = "../../other/egui/eframe" }
+# epaint = { path = "../../other/egui/epaint" }
+# egui_extras = { path = "../../other/egui/egui_extras" }
