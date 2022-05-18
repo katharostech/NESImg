@@ -22,11 +22,13 @@ pub struct NesimgGui {
     #[serde(skip)]
     source_texture: Option<RetainedImage>,
     #[serde(skip)]
-    target_image: Option<RetainedImage>,
+    target_reduced_texture: Option<RetainedImage>,
+    #[serde(skip)]
+    target_nes_texture: Option<RetainedImage>,
     #[serde(skip)]
     nes_pallet: Option<[Srgb<u8>; 16]>,
     #[serde(skip)]
-    non_nes_pallet: Option<[Srgb<u8>; 16]>,
+    reduced_pallet: Option<[Srgb<u8>; 16]>,
 
     #[serde(skip)]
     other_colors: HashMap<&'static str, Srgb<u8>>,
@@ -87,9 +89,10 @@ impl Default for NesimgGui {
             image_zoom: 1.0,
             source_image: None,
             source_texture: None,
-            target_image: None,
+            target_reduced_texture: None,
+            target_nes_texture: None,
             nes_pallet: None,
-            non_nes_pallet: None,
+            reduced_pallet: None,
             orig_color_counts: Vec::new(),
             other_colors: HashMap::default(),
             show_nes_palette: false,
@@ -117,9 +120,10 @@ impl NesimgGui {
     fn reset_images(&mut self) {
         self.source_image = None;
         self.source_texture = None;
-        self.target_image = None;
+        self.target_reduced_texture = None;
+        self.target_nes_texture = None;
         self.nes_pallet = None;
-        self.non_nes_pallet = None;
+        self.reduced_pallet = None;
         self.other_colors.clear();
         self.orig_color_counts.clear();
     }
@@ -174,11 +178,27 @@ impl eframe::App for NesimgGui {
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.add_space(ui.spacing().interact_size.y);
 
-                ui.heading("Image Palette");
+                ui.heading("NES Compatible Palette");
                 ui.separator();
 
                 ui.horizontal_wrapped(|ui| {
                     if let Some(palette) = &mut self.nes_pallet {
+                        for color in palette.iter() {
+                            show_srgb(ui, color)
+                        }
+                    } else {
+                        ui.colored_label(egui::Color32::DARK_RED, "No palette.");
+                        ui.label("Convert image to generate palette.");
+                    }
+                });
+
+                ui.add_space(ui.spacing().interact_size.y);
+
+                ui.heading("Reduced Palette");
+                ui.separator();
+
+                ui.horizontal_wrapped(|ui| {
+                    if let Some(palette) = &mut self.reduced_pallet {
                         for color in palette.iter() {
                             show_srgb(ui, color)
                         }
@@ -206,13 +226,14 @@ impl eframe::App for NesimgGui {
 
                 ui.add_space(ui.spacing().interact_size.y);
 
-                ui.heading("Original Image Colors");
+                ui.heading("Source Image Histogram");
                 ui.separator();
 
                 for (color, count) in &self.orig_color_counts {
                     ui.horizontal(|ui| {
                         show_srgb(ui, &color);
-                        ui.label(format!(": {}", count));
+                        ui.label(format!("{}", count))
+                            .on_hover_text("Pixel count with this color");
                     });
                 }
             });
@@ -231,7 +252,7 @@ impl eframe::App for NesimgGui {
                                     self.reset_images();
                                 }
                             }
-                            ui.heading("Source File");
+                            ui.heading("Source Image");
                         });
                         egui::Frame::canvas(ui.style()).show(ui, |ui| {
                             ui.set_min_size(ui.available_size());
@@ -255,31 +276,69 @@ impl eframe::App for NesimgGui {
                         });
                     });
 
-                    strip.cell(|ui| {
-                        ui.heading("NES Conversion");
-                        egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                            ui.set_min_size(ui.available_size());
+                    strip.strip(|builder| {
+                        builder.sizes(Size::remainder(), 2).vertical(|mut strip| {
+                            strip.cell(|ui| {
+                                ui.heading("NES");
+                                egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                                    ui.set_min_size(ui.available_size());
 
-                            if let Some(image) = &mut self.target_image {
-                                ui.add(image_viewer(
-                                    image,
-                                    &mut self.image_zoom,
-                                    &mut self.image_offset,
-                                ));
-                            } else {
-                                ui.vertical_centered(|ui| {
-                                    ui.add_space(20.0);
-
-                                    if self.source_texture.is_none() {
-                                        ui.colored_label(Color32::DARK_RED, "No source file.");
-                                        ui.label("Load source file to convert");
+                                    if let Some(image) = &mut self.target_nes_texture {
+                                        ui.add(image_viewer(
+                                            image,
+                                            &mut self.image_zoom,
+                                            &mut self.image_offset,
+                                        ));
                                     } else {
-                                        if ui.button("Convert...").clicked() {
-                                            convert(self, ui, _frame);
-                                        }
+                                        ui.vertical_centered(|ui| {
+                                            ui.add_space(20.0);
+
+                                            if self.source_texture.is_none() {
+                                                ui.colored_label(
+                                                    Color32::DARK_RED,
+                                                    "No source file.",
+                                                );
+                                                ui.label("Load source file to convert");
+                                            } else {
+                                                if ui.button("Convert...").clicked() {
+                                                    convert(self, ui, _frame);
+                                                }
+                                            }
+                                        });
                                     }
                                 });
-                            }
+                            });
+
+                            strip.cell(|ui| {
+                                ui.heading("Reduced Pallet");
+                                egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                                    ui.set_min_size(ui.available_size());
+
+                                    if let Some(image) = &mut self.target_reduced_texture {
+                                        ui.add(image_viewer(
+                                            image,
+                                            &mut self.image_zoom,
+                                            &mut self.image_offset,
+                                        ));
+                                    } else {
+                                        ui.vertical_centered(|ui| {
+                                            ui.add_space(20.0);
+
+                                            if self.source_texture.is_none() {
+                                                ui.colored_label(
+                                                    Color32::DARK_RED,
+                                                    "No source file.",
+                                                );
+                                                ui.label("Load source file to convert");
+                                            } else {
+                                                if ui.button("Convert...").clicked() {
+                                                    convert(self, ui, _frame);
+                                                }
+                                            }
+                                        });
+                                    }
+                                });
+                            });
                         });
                     });
                 });
@@ -338,6 +397,7 @@ fn convert(data: &mut NesimgGui, _ui: &mut egui::Ui, _frame: &mut eframe::Frame)
         return;
     };
 
+    // Convert image pixels to Lab encoding
     let pixels = source_image
         .pixels
         .iter()
@@ -346,17 +406,17 @@ fn convert(data: &mut NesimgGui, _ui: &mut egui::Ui, _frame: &mut eframe::Frame)
         .map(|x| x.into_linear().into_color())
         .collect::<Vec<Lab>>();
 
+    // Compute the average color
     let l = pixels.iter().map(|x| x.l).sum::<f32>() / pixels.len() as f32;
     let a = pixels.iter().map(|x| x.a).sum::<f32>() / pixels.len() as f32;
     let b = pixels.iter().map(|x| x.b).sum::<f32>() / pixels.len() as f32;
-
     let average_color = Lab::new(l, a, b);
     let average_srgb: Srgb = average_color.into_color();
     data.other_colors
         .insert("Average", average_srgb.into_format());
 
+    // Count and sort source image colors
     let mut color_counts = Vec::<(Lab, usize)>::new();
-
     for pixel in &pixels {
         let mut found_color = false;
         for (color, count) in &mut color_counts {
@@ -372,15 +432,171 @@ fn convert(data: &mut NesimgGui, _ui: &mut egui::Ui, _frame: &mut eframe::Frame)
     }
     color_counts.sort_by_key(|x| x.1);
     color_counts.reverse();
-    let most_common = Srgb::from_linear(color_counts.first().unwrap().0.into_color()).into_format();
-    data.other_colors.insert("Most Common", most_common);
-    data.other_colors.insert(
-        "Least Common",
-        Srgb::from_linear(color_counts.last().unwrap().0.into_color()).into_format(),
-    );
 
-    let background_color = find_closest_nes(color_counts.first().unwrap().0);
-    data.nes_pallet = Some([Srgb::from_color(background_color).into_format(); 16]);
+    // The background color is the most common color
+    let background_color = color_counts.first().unwrap().0;
+
+    // Start creating the reduced pallet
+    let mut reduced_pallet = [Default::default(); 12];
+    let mut pallet_diffs = [0.0; 12];
+    let mut lowest_diff = (0, f32::NEG_INFINITY);
+
+    for (i, color) in color_counts
+        .iter()
+        .skip(1)
+        .map(|x| x.0)
+        .enumerate()
+        .take(12)
+    {
+        reduced_pallet[i] = color;
+    }
+
+    let get_pallet_diff = |pallet: &[Lab; 12], color: &Lab| {
+        let mut diff = 0.0;
+        for c in pallet {
+            diff += color.get_color_difference(c);
+        }
+        diff
+    };
+    let calculate_pallet_diffs =
+        |pallet: &mut [Lab; 12], diffs: &mut [f32; 12], lowest_diff: &mut (usize, f32)| {
+            for (i, c) in pallet.iter().enumerate() {
+                let diff = get_pallet_diff(pallet, c);
+
+                diffs[i] = diff;
+                if diff < lowest_diff.1 {
+                    *lowest_diff = (i, diff);
+                }
+            }
+        };
+
+    reduced_pallet[0] = background_color;
+    calculate_pallet_diffs(&mut reduced_pallet, &mut pallet_diffs, &mut lowest_diff);
+
+    for pixel in color_counts.iter().map(|x| x.0) {
+        let diff = get_pallet_diff(&reduced_pallet, &pixel);
+        if diff > lowest_diff.1 {
+            reduced_pallet[lowest_diff.0] = pixel;
+        }
+
+        calculate_pallet_diffs(&mut reduced_pallet, &mut pallet_diffs, &mut lowest_diff);
+    }
+
+    // Set the reduced pallet
+    data.reduced_pallet = Some([
+        Srgb::from_color(background_color).into_format(),
+        Srgb::from_color(reduced_pallet[0]).into_format(),
+        Srgb::from_color(reduced_pallet[1]).into_format(),
+        Srgb::from_color(reduced_pallet[2]).into_format(),
+        Srgb::from_color(background_color).into_format(),
+        Srgb::from_color(reduced_pallet[3]).into_format(),
+        Srgb::from_color(reduced_pallet[4]).into_format(),
+        Srgb::from_color(reduced_pallet[5]).into_format(),
+        Srgb::from_color(background_color).into_format(),
+        Srgb::from_color(reduced_pallet[6]).into_format(),
+        Srgb::from_color(reduced_pallet[7]).into_format(),
+        Srgb::from_color(reduced_pallet[8]).into_format(),
+        Srgb::from_color(background_color).into_format(),
+        Srgb::from_color(reduced_pallet[9]).into_format(),
+        Srgb::from_color(reduced_pallet[10]).into_format(),
+        Srgb::from_color(reduced_pallet[11]).into_format(),
+    ]);
+
+    let mut nes_reduced_pallet: [Lab; 12] = Default::default();
+    for (i, color) in reduced_pallet.iter().enumerate() {
+        nes_reduced_pallet[i] = find_closest_nes(*color);
+    }
+
+    // Set the NES pallet
+    data.nes_pallet = Some([
+        Srgb::from_color(find_closest_nes(background_color)).into_format(),
+        Srgb::from_color(nes_reduced_pallet[0]).into_format(),
+        Srgb::from_color(nes_reduced_pallet[1]).into_format(),
+        Srgb::from_color(nes_reduced_pallet[2]).into_format(),
+        Srgb::from_color(find_closest_nes(background_color)).into_format(),
+        Srgb::from_color(nes_reduced_pallet[3]).into_format(),
+        Srgb::from_color(nes_reduced_pallet[4]).into_format(),
+        Srgb::from_color(nes_reduced_pallet[5]).into_format(),
+        Srgb::from_color(find_closest_nes(background_color)).into_format(),
+        Srgb::from_color(nes_reduced_pallet[6]).into_format(),
+        Srgb::from_color(nes_reduced_pallet[7]).into_format(),
+        Srgb::from_color(nes_reduced_pallet[8]).into_format(),
+        Srgb::from_color(find_closest_nes(background_color)).into_format(),
+        Srgb::from_color(nes_reduced_pallet[9]).into_format(),
+        Srgb::from_color(nes_reduced_pallet[10]).into_format(),
+        Srgb::from_color(nes_reduced_pallet[11]).into_format(),
+    ]);
+
+    let reduced_pallet_full = [
+        background_color,
+        reduced_pallet[0],
+        reduced_pallet[1],
+        reduced_pallet[2],
+        reduced_pallet[3],
+        reduced_pallet[4],
+        reduced_pallet[5],
+        reduced_pallet[6],
+        reduced_pallet[7],
+        reduced_pallet[8],
+        reduced_pallet[9],
+        reduced_pallet[10],
+        reduced_pallet[11],
+    ];
+
+    let target_nes_pallet = [
+        background_color,
+        nes_reduced_pallet[0],
+        nes_reduced_pallet[1],
+        nes_reduced_pallet[2],
+        nes_reduced_pallet[3],
+        nes_reduced_pallet[4],
+        nes_reduced_pallet[5],
+        nes_reduced_pallet[6],
+        nes_reduced_pallet[7],
+        nes_reduced_pallet[8],
+        nes_reduced_pallet[9],
+        nes_reduced_pallet[10],
+        nes_reduced_pallet[11],
+    ];
+
+    let target_reduced_pixels = pixels
+        .iter()
+        .map(|x| find_closest_in_pallet(*x, reduced_pallet_full))
+        .collect::<Vec<_>>();
+    let target_reduced_pixels_color32 = target_reduced_pixels
+        .iter()
+        .map(|x| Srgb::from_color(*x).into_format::<u8>())
+        .map(|x| Color32::from_rgb(x.red, x.green, x.blue))
+        .collect::<Vec<_>>();
+
+    let target_reduced_image = egui::ColorImage {
+        size: source_image.size,
+        pixels: target_reduced_pixels_color32,
+    };
+    let target_reduced_texture = RetainedImage::from_color_image(
+        "target_imge",
+        target_reduced_image,
+        TextureFilter::Nearest,
+    );
+    data.target_reduced_texture = Some(target_reduced_texture);
+
+    let target_nes_pixels = target_reduced_pixels
+        .iter()
+        .map(|x| find_closest_in_pallet(*x, target_nes_pallet))
+        .map(|x| Srgb::from_color(x).into_format::<u8>())
+        .map(|x| Color32::from_rgb(x.red, x.green, x.blue))
+        .collect::<Vec<_>>();
+
+    let target_reduced_image = egui::ColorImage {
+        size: source_image.size,
+        pixels: target_nes_pixels,
+    };
+    let target_nes_texture = RetainedImage::from_color_image(
+        "target_imge",
+        target_reduced_image,
+        TextureFilter::Nearest,
+    );
+    data.target_nes_texture = Some(target_nes_texture);
 
     data.orig_color_counts = color_counts
         .iter()
@@ -389,11 +605,16 @@ fn convert(data: &mut NesimgGui, _ui: &mut egui::Ui, _frame: &mut eframe::Frame)
 }
 
 fn find_closest_nes(color: Lab) -> Lab {
-    let mut closest_color = NES_PALETTE_LAB[0];
-    let mut diff = color.get_color_difference(&NES_PALETTE_LAB[0]);
+    find_closest_in_pallet(color, *NES_PALETTE_LAB)
+}
 
-    for other_color in NES_PALETTE_LAB.iter().skip(1) {
-        let next_diff = color.get_color_difference(other_color);
+fn find_closest_in_pallet<'a, I: IntoIterator<Item = Lab>>(color: Lab, pallet: I) -> Lab {
+    let mut iter = pallet.into_iter();
+    let mut closest_color = iter.next().unwrap();
+    let mut diff = color.get_color_difference(&closest_color);
+
+    for other_color in iter {
+        let next_diff = color.get_color_difference(&other_color);
         if next_diff < diff {
             diff = next_diff;
             closest_color = other_color.clone();
