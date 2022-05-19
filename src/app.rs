@@ -1,8 +1,10 @@
 use eframe::{egui, epaint::textures::TextureFilter};
 use egui::{Color32, ColorImage, Vec2};
+use kmeans_colors::{get_kmeans_hamerly, Kmeans, Sort};
 use once_cell::sync::Lazy;
 use palette::{ColorDifference, FromColor, IntoColor, Lab};
-use std::{collections::HashMap, fs, io::Read};
+use rand::Rng;
+use std::{collections::HashMap, fs, io::Read, mem, sync::Arc};
 
 use egui_extras::{RetainedImage, Size, StripBuilder};
 use palette::Srgb;
@@ -212,14 +214,12 @@ impl eframe::App for NesimgGui {
                     }
                 });
 
-                ui.add_space(ui.spacing().interact_size.y);
+                if !self.other_colors.is_empty() {
+                    ui.add_space(ui.spacing().interact_size.y);
 
-                ui.heading("Other Colors");
-                ui.separator();
+                    ui.heading("Other Colors");
+                    ui.separator();
 
-                if self.other_colors.is_empty() {
-                    ui.label("No other colors.");
-                } else {
                     for (&name, color) in &self.other_colors {
                         ui.horizontal(|ui| {
                             ui.label(egui::RichText::new(name).strong());
@@ -445,14 +445,90 @@ fn convert(data: &mut NesimgGui, _ui: &mut egui::Ui, _frame: &mut eframe::Frame)
         .map(|x| x.into_linear().into_color())
         .collect::<Vec<Lab>>();
 
-    // Compute the average color
-    let l = pixels.iter().map(|x| x.l).sum::<f32>() / pixels.len() as f32;
-    let a = pixels.iter().map(|x| x.a).sum::<f32>() / pixels.len() as f32;
-    let b = pixels.iter().map(|x| x.b).sum::<f32>() / pixels.len() as f32;
-    let average_color = Lab::new(l, a, b);
-    let average_srgb: Srgb = average_color.into_color();
-    data.other_colors
-        .insert("Average", average_srgb.into_format());
+    // Loop through k-means algorithm a few times with a different seed and keep the best result
+    let mut kmeans = Kmeans::new();
+    for i in 0..5 {
+        let r = get_kmeans_hamerly(13, 20, 5.0, false, &pixels, i ^ 42);
+        if r.score < kmeans.score {
+            kmeans = r;
+        }
+    }
+
+    // Identify the background color
+    let sorted = Lab::sort_indexed_colors(&kmeans.centroids, &kmeans.indices);
+    let background_color = Lab::get_dominant_color(&sorted).expect("No dominant color");
+
+    // Collect the other colors into a list of non-background colors
+    let mut non_background_reduced_colors: [Lab; 12] = Default::default();
+    let mut i = 0;
+    for color in kmeans.centroids {
+        if color != background_color {
+            non_background_reduced_colors[i] = color;
+            i += 1;
+        }
+    }
+
+    // Set the reduced pallet in the UI
+    data.reduced_pallet = Some([
+        Srgb::from_color(background_color).into_format(),
+        Srgb::from_color(non_background_reduced_colors[0]).into_format(),
+        Srgb::from_color(non_background_reduced_colors[1]).into_format(),
+        Srgb::from_color(non_background_reduced_colors[2]).into_format(),
+        Srgb::from_color(background_color).into_format(),
+        Srgb::from_color(non_background_reduced_colors[3]).into_format(),
+        Srgb::from_color(non_background_reduced_colors[4]).into_format(),
+        Srgb::from_color(non_background_reduced_colors[5]).into_format(),
+        Srgb::from_color(background_color).into_format(),
+        Srgb::from_color(non_background_reduced_colors[6]).into_format(),
+        Srgb::from_color(non_background_reduced_colors[7]).into_format(),
+        Srgb::from_color(non_background_reduced_colors[8]).into_format(),
+        Srgb::from_color(background_color).into_format(),
+        Srgb::from_color(non_background_reduced_colors[9]).into_format(),
+        Srgb::from_color(non_background_reduced_colors[10]).into_format(),
+        Srgb::from_color(non_background_reduced_colors[11]).into_format(),
+    ]);
+
+    // Create the list of unique colors in the reduced pallet
+    let reduced_pallet_unique = [
+        background_color,
+        non_background_reduced_colors[0],
+        non_background_reduced_colors[1],
+        non_background_reduced_colors[2],
+        non_background_reduced_colors[3],
+        non_background_reduced_colors[4],
+        non_background_reduced_colors[5],
+        non_background_reduced_colors[6],
+        non_background_reduced_colors[7],
+        non_background_reduced_colors[8],
+        non_background_reduced_colors[9],
+        non_background_reduced_colors[10],
+        non_background_reduced_colors[11],
+    ];
+
+    // Convert the image pixels to use only the colors in the reduced pallet
+    let target_reduced_pixels = pixels
+        .iter()
+        .map(|x| find_closest_in_pallet(*x, reduced_pallet_unique))
+        .collect::<Vec<_>>();
+    // Convert reduced pallet pixels to srgba
+    let target_reduced_pixels_color32 = target_reduced_pixels
+        .iter()
+        .map(|x| Srgb::from_color(*x).into_format::<u8>())
+        .map(|x| Color32::from_rgb(x.red, x.green, x.blue))
+        .collect::<Vec<_>>();
+    // Create image from pixels
+    let target_reduced_image = egui::ColorImage {
+        size: source_image.size,
+        pixels: target_reduced_pixels_color32,
+    };
+    // Upload to GPU
+    let target_reduced_texture = RetainedImage::from_color_image(
+        "target_imge",
+        target_reduced_image,
+        TextureFilter::Nearest,
+    );
+    // Set in UI
+    data.target_reduced_texture = Some(target_reduced_texture);
 
     // Count and sort source image colors
     let mut color_counts = Vec::<(Lab, usize)>::new();
@@ -478,26 +554,77 @@ fn convert(data: &mut NesimgGui, _ui: &mut egui::Ui, _frame: &mut eframe::Frame)
         .map(|x| (Srgb::from_linear(x.0.into_color()).into_format(), x.1))
         .collect();
 
-    // The background color is the most common color
-    let background_color = color_counts.first().unwrap().0;
-
-    // Start creating the reduced pallet
-    let mut reduced_pallet = [Default::default(); 12];
-    let mut pallet_diffs = [0.0; 12];
-    let mut lowest_diff = (0, f32::NEG_INFINITY);
-
-    // Creat the initial pallet by grabbing the most-used colors from the image
-    for (i, color) in color_counts
-        .iter()
-        .skip(1)
-        .map(|x| x.0)
-        .enumerate()
-        .take(12)
-    {
-        reduced_pallet[i] = color;
+    //
+    let background_color_nes = find_closest_nes(background_color);
+    let mut non_background_nes_colors: [Lab; 12] = Default::default();
+    for (i, color) in non_background_reduced_colors.iter().enumerate() {
+        non_background_nes_colors[i] = find_closest_nes(*color);
     }
 
-    // // Make sure tiles are being extracted right
+    // The set of unique NES colors
+    let nes_palette_unique = [
+        background_color_nes,
+        non_background_nes_colors[0],
+        non_background_nes_colors[1],
+        non_background_nes_colors[2],
+        non_background_nes_colors[3],
+        non_background_nes_colors[4],
+        non_background_nes_colors[5],
+        non_background_nes_colors[6],
+        non_background_nes_colors[7],
+        non_background_nes_colors[8],
+        non_background_nes_colors[9],
+        non_background_nes_colors[10],
+        non_background_nes_colors[11],
+    ];
+
+    // Convert reduced_pallet pixels to their closest NES equivalents
+    let target_nes_pixels = target_reduced_pixels
+        .iter()
+        .map(|x| find_closest_in_pallet(*x, nes_palette_unique))
+        .map(|x| Srgb::from_color(x).into_format::<u8>())
+        .map(|x| Color32::from_rgb(x.red, x.green, x.blue))
+        .collect::<Vec<_>>();
+    // Create image from pixels
+    let target_nes_image = egui::ColorImage {
+        size: source_image.size,
+        pixels: target_nes_pixels,
+    };
+    // Upload to texture
+    let target_nes_texture =
+        RetainedImage::from_color_image("target_imge", target_nes_image, TextureFilter::Nearest);
+    // Set in UI
+    data.target_nes_texture = Some(target_nes_texture);
+
+    // Collect reduced pixels into 8x8 tiles
+    let mut tiles: Vec<[Lab; 64]> = Vec::new();
+    assert_eq!(
+        source_image.width() % 8,
+        0,
+        "Image width must be a multiple of 8"
+    );
+    assert_eq!(
+        source_image.height() % 8,
+        0,
+        "Image height must be a multiple of 8"
+    );
+    for y in 0..(source_image.height() / 8) {
+        for x in 0..(source_image.width() / 8) {
+            let mut tile: [Lab; 64] = [Lab::default(); 64];
+            let mut i = 0;
+            for row in 0..8 {
+                for col in 0..8 {
+                    tile[i] =
+                        target_reduced_pixels[(y * 8 + row) * source_image.width() + x * 8 + col];
+
+                    i += 1;
+                }
+            }
+            tiles.push(tile);
+        }
+    }
+
+    // // Make sure tiles are being extracted right by dumping them to a directory
     // for (i, tile) in tiles.iter().enumerate() {
     //     use palette::Pixel;
     //     let mut srgb_tile = Vec::<u8>::new();
@@ -515,155 +642,277 @@ fn convert(data: &mut NesimgGui, _ui: &mut egui::Ui, _frame: &mut eframe::Frame)
     //         .expect("Save test tile");
     // }
 
-    // Helper to get the sum of the difference that one color has from all the other colors in the
-    // pallet
-    let get_pallet_diff = |pallet: &[Lab; 12], color: &Lab| {
-        let mut diff = 0.0;
-        for c in pallet {
-            diff += color.get_color_difference(c);
-        }
-        diff
-    };
-    // Helper to update the pallet diff of each color in the pallet, and take note of the least
-    // different color in the pallet
-    let calculate_pallet_diffs =
-        |pallet: &mut [Lab; 12], diffs: &mut [f32; 12], lowest_diff: &mut (usize, f32)| {
-            for (i, c) in pallet.iter().enumerate() {
-                let diff = get_pallet_diff(pallet, c);
+    // Loop through the tiles and record how often each color in the reduced pallet appears with the
+    // other colors in the pallet
 
-                diffs[i] = diff;
-                if diff < lowest_diff.1 {
-                    *lowest_diff = (i, diff);
+    // A vector of tiles and for each tile a vector of non-background reduced tile color indices
+    let mut tile_colors = Vec::<Vec<usize>>::new();
+    for tile in &tiles {
+        let mut colors = Vec::new();
+        for pixel in tile {
+            for (i, color) in non_background_reduced_colors.iter().enumerate() {
+                if color == pixel && !colors.contains(&i) {
+                    colors.push(i);
                 }
             }
+        }
+        tile_colors.push(colors);
+    }
+
+    let mut color_adjacent_count = HashMap::<(usize, usize), usize>::new();
+    for color1 in 0..non_background_reduced_colors.len() {
+        for tile in &tile_colors {
+            if !tile.contains(&color1) {
+                continue;
+            }
+
+            for color2 in 0..non_background_reduced_colors.len() {
+                if color2 == color1 {
+                    continue;
+                }
+
+                if tile.contains(&color2) {
+                    let key = if color1 > color2 {
+                        (color1, color2)
+                    } else {
+                        (color2, color1)
+                    };
+                    *color_adjacent_count.entry(key).or_default() += 1;
+                }
+            }
+        }
+    }
+
+    let mut available_colors = Vec::new();
+    for color in 0..non_background_reduced_colors.len() {
+        available_colors.push(color);
+    }
+    let mut pallets: [[usize; 3]; 4] = Default::default();
+
+    let get_pallet_color_dist = |color: usize, other: usize| {
+        let key = if color > other {
+            (color, other)
+        } else {
+            (other, color)
+        };
+        match color_adjacent_count.get(&key) {
+            Some(count) => 1.0 / *count as f32,
+            None => f32::INFINITY,
+        }
+    };
+
+    for pallet in &mut pallets {
+        pallet[0] = available_colors.pop().unwrap();
+
+        for i in 1..=2 {
+            let mut closest_accompanying = available_colors.pop().unwrap();
+            let mut closest_accompanying_diff =
+                get_pallet_color_dist(closest_accompanying, pallet[0]);
+
+            for color in &mut available_colors {
+                let diff = get_pallet_color_dist(*color, pallet[0]);
+                if diff < closest_accompanying_diff {
+                    mem::swap(color, &mut closest_accompanying);
+                    closest_accompanying_diff = diff;
+                }
+            }
+
+            pallet[i] = closest_accompanying;
+        }
+    }
+
+    let sorted_pallet = [
+        background_color,
+        non_background_reduced_colors[pallets[0][0]],
+        non_background_reduced_colors[pallets[0][1]],
+        non_background_reduced_colors[pallets[0][2]],
+        background_color,
+        non_background_reduced_colors[pallets[1][0]],
+        non_background_reduced_colors[pallets[1][1]],
+        non_background_reduced_colors[pallets[1][2]],
+        background_color,
+        non_background_reduced_colors[pallets[2][0]],
+        non_background_reduced_colors[pallets[2][1]],
+        non_background_reduced_colors[pallets[2][2]],
+        background_color,
+        non_background_reduced_colors[pallets[3][0]],
+        non_background_reduced_colors[pallets[3][1]],
+        non_background_reduced_colors[pallets[3][2]],
+    ];
+
+    // Set the reduced pallet in the UI
+    data.reduced_pallet = Some([
+        Srgb::from_color(sorted_pallet[0]).into_format(),
+        Srgb::from_color(sorted_pallet[1]).into_format(),
+        Srgb::from_color(sorted_pallet[2]).into_format(),
+        Srgb::from_color(sorted_pallet[3]).into_format(),
+        Srgb::from_color(sorted_pallet[4]).into_format(),
+        Srgb::from_color(sorted_pallet[5]).into_format(),
+        Srgb::from_color(sorted_pallet[6]).into_format(),
+        Srgb::from_color(sorted_pallet[7]).into_format(),
+        Srgb::from_color(sorted_pallet[8]).into_format(),
+        Srgb::from_color(sorted_pallet[9]).into_format(),
+        Srgb::from_color(sorted_pallet[10]).into_format(),
+        Srgb::from_color(sorted_pallet[11]).into_format(),
+        Srgb::from_color(sorted_pallet[12]).into_format(),
+        Srgb::from_color(sorted_pallet[13]).into_format(),
+        Srgb::from_color(sorted_pallet[14]).into_format(),
+        Srgb::from_color(sorted_pallet[15]).into_format(),
+    ]);
+
+    let sorted_pallet_nes = [
+        find_closest_nes(sorted_pallet[0]),
+        find_closest_nes(sorted_pallet[1]),
+        find_closest_nes(sorted_pallet[2]),
+        find_closest_nes(sorted_pallet[3]),
+        find_closest_nes(sorted_pallet[4]),
+        find_closest_nes(sorted_pallet[5]),
+        find_closest_nes(sorted_pallet[6]),
+        find_closest_nes(sorted_pallet[7]),
+        find_closest_nes(sorted_pallet[8]),
+        find_closest_nes(sorted_pallet[9]),
+        find_closest_nes(sorted_pallet[10]),
+        find_closest_nes(sorted_pallet[11]),
+        find_closest_nes(sorted_pallet[12]),
+        find_closest_nes(sorted_pallet[13]),
+        find_closest_nes(sorted_pallet[14]),
+        find_closest_nes(sorted_pallet[15]),
+    ];
+
+    // Set the NES pallet in the UI
+    data.nes_pallet = Some([
+        Srgb::from_color(sorted_pallet_nes[0]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[1]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[2]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[3]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[4]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[5]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[6]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[7]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[8]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[9]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[10]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[11]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[12]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[13]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[14]).into_format(),
+        Srgb::from_color(sorted_pallet_nes[15]).into_format(),
+    ]);
+
+    let reduced_tile_pallets = [
+        [
+            sorted_pallet[0],
+            sorted_pallet[1],
+            sorted_pallet[2],
+            sorted_pallet[3],
+        ],
+        [
+            sorted_pallet[4],
+            sorted_pallet[5],
+            sorted_pallet[6],
+            sorted_pallet[7],
+        ],
+        [
+            sorted_pallet[8],
+            sorted_pallet[9],
+            sorted_pallet[10],
+            sorted_pallet[11],
+        ],
+        [
+            sorted_pallet[12],
+            sorted_pallet[13],
+            sorted_pallet[14],
+            sorted_pallet[15],
+        ],
+    ];
+    let nes_tile_pallets = [
+        [
+            sorted_pallet_nes[0],
+            sorted_pallet_nes[1],
+            sorted_pallet_nes[2],
+            sorted_pallet_nes[3],
+        ],
+        [
+            sorted_pallet_nes[4],
+            sorted_pallet_nes[5],
+            sorted_pallet_nes[6],
+            sorted_pallet_nes[7],
+        ],
+        [
+            sorted_pallet_nes[8],
+            sorted_pallet_nes[9],
+            sorted_pallet_nes[10],
+            sorted_pallet_nes[11],
+        ],
+        [
+            sorted_pallet_nes[12],
+            sorted_pallet_nes[13],
+            sorted_pallet_nes[14],
+            sorted_pallet_nes[15],
+        ],
+    ];
+
+    let mut nes_final_pixels = Vec::new();
+
+    for tile in &mut tiles {
+        let get_pallet_dist = |tile: &[Lab; 64], pallet: [Lab; 4]| {
+            let mut dist = 4;
+            for pixel in tile {
+                if pallet.contains(pixel) {
+                    dist -= 1;
+                }
+            }
+
+            dist
         };
 
-    calculate_pallet_diffs(&mut reduced_pallet, &mut pallet_diffs, &mut lowest_diff);
+        let mut best_pallet_idx = 0;
+        let mut best_pallet_dist = get_pallet_dist(tile, reduced_tile_pallets[0]);
 
-    for pixel in color_counts.iter().map(|x| x.0) {
-        let diff = get_pallet_diff(&reduced_pallet, &pixel);
-        if diff > lowest_diff.1 {
-            reduced_pallet[lowest_diff.0] = pixel;
+        for i in 1..4 {
+            let dist = get_pallet_dist(tile, reduced_tile_pallets[i]);
+            if dist < best_pallet_dist {
+                best_pallet_dist = dist;
+                best_pallet_idx = i;
+            }
         }
 
-        calculate_pallet_diffs(&mut reduced_pallet, &mut pallet_diffs, &mut lowest_diff);
+        for pixel in tile {
+            *pixel = find_closest_in_pallet(*pixel, nes_tile_pallets[best_pallet_idx]);
+        }
     }
 
-    // Set the reduced pallet
-    data.reduced_pallet = Some([
-        Srgb::from_color(background_color).into_format(),
-        Srgb::from_color(reduced_pallet[0]).into_format(),
-        Srgb::from_color(reduced_pallet[1]).into_format(),
-        Srgb::from_color(reduced_pallet[2]).into_format(),
-        Srgb::from_color(background_color).into_format(),
-        Srgb::from_color(reduced_pallet[3]).into_format(),
-        Srgb::from_color(reduced_pallet[4]).into_format(),
-        Srgb::from_color(reduced_pallet[5]).into_format(),
-        Srgb::from_color(background_color).into_format(),
-        Srgb::from_color(reduced_pallet[6]).into_format(),
-        Srgb::from_color(reduced_pallet[7]).into_format(),
-        Srgb::from_color(reduced_pallet[8]).into_format(),
-        Srgb::from_color(background_color).into_format(),
-        Srgb::from_color(reduced_pallet[9]).into_format(),
-        Srgb::from_color(reduced_pallet[10]).into_format(),
-        Srgb::from_color(reduced_pallet[11]).into_format(),
-    ]);
-
-    let mut nes_reduced_pallet: [Lab; 12] = Default::default();
-    for (i, color) in reduced_pallet.iter().enumerate() {
-        nes_reduced_pallet[i] = find_closest_nes(*color);
+    let tile_height = source_image.height() / 8;
+    let tile_width = source_image.width() / 8;
+    for row in 0..tile_height {
+        for y in 0..8 {
+            for col in 0..tile_width {
+                for x in 0..8 {
+                    nes_final_pixels.push(tiles[row * tile_width + col][y * 8 + x]);
+                }
+            }
+        }
     }
 
-    // Set the NES pallet
-    data.nes_pallet = Some([
-        Srgb::from_color(find_closest_nes(background_color)).into_format(),
-        Srgb::from_color(nes_reduced_pallet[0]).into_format(),
-        Srgb::from_color(nes_reduced_pallet[1]).into_format(),
-        Srgb::from_color(nes_reduced_pallet[2]).into_format(),
-        Srgb::from_color(find_closest_nes(background_color)).into_format(),
-        Srgb::from_color(nes_reduced_pallet[3]).into_format(),
-        Srgb::from_color(nes_reduced_pallet[4]).into_format(),
-        Srgb::from_color(nes_reduced_pallet[5]).into_format(),
-        Srgb::from_color(find_closest_nes(background_color)).into_format(),
-        Srgb::from_color(nes_reduced_pallet[6]).into_format(),
-        Srgb::from_color(nes_reduced_pallet[7]).into_format(),
-        Srgb::from_color(nes_reduced_pallet[8]).into_format(),
-        Srgb::from_color(find_closest_nes(background_color)).into_format(),
-        Srgb::from_color(nes_reduced_pallet[9]).into_format(),
-        Srgb::from_color(nes_reduced_pallet[10]).into_format(),
-        Srgb::from_color(nes_reduced_pallet[11]).into_format(),
-    ]);
-
-    let target_reduced_palette = [
-        background_color,
-        reduced_pallet[0],
-        reduced_pallet[1],
-        reduced_pallet[2],
-        reduced_pallet[3],
-        reduced_pallet[4],
-        reduced_pallet[5],
-        reduced_pallet[6],
-        reduced_pallet[7],
-        reduced_pallet[8],
-        reduced_pallet[9],
-        reduced_pallet[10],
-        reduced_pallet[11],
-    ];
-
-    let target_nes_palette = [
-        background_color,
-        nes_reduced_pallet[0],
-        nes_reduced_pallet[1],
-        nes_reduced_pallet[2],
-        nes_reduced_pallet[3],
-        nes_reduced_pallet[4],
-        nes_reduced_pallet[5],
-        nes_reduced_pallet[6],
-        nes_reduced_pallet[7],
-        nes_reduced_pallet[8],
-        nes_reduced_pallet[9],
-        nes_reduced_pallet[10],
-        nes_reduced_pallet[11],
-    ];
-
-    let target_reduced_pixels = pixels
-        .iter()
-        .map(|x| find_closest_in_pallet(*x, target_reduced_palette))
-        .collect::<Vec<_>>();
-    let target_reduced_pixels_color32 = target_reduced_pixels
+    // Convert reduced pallet pixels to srgba
+    let nes_pixels_color32 = nes_final_pixels
         .iter()
         .map(|x| Srgb::from_color(*x).into_format::<u8>())
         .map(|x| Color32::from_rgb(x.red, x.green, x.blue))
         .collect::<Vec<_>>();
-
+    // Create image from pixels
     let target_reduced_image = egui::ColorImage {
         size: source_image.size,
-        pixels: target_reduced_pixels_color32,
+        pixels: nes_pixels_color32,
     };
-    let target_reduced_texture = RetainedImage::from_color_image(
+    // Upload to GPU
+    let nes_texture = RetainedImage::from_color_image(
         "target_imge",
         target_reduced_image,
         TextureFilter::Nearest,
     );
-    data.target_reduced_texture = Some(target_reduced_texture);
-
-    let target_nes_pixels = target_reduced_pixels
-        .iter()
-        .map(|x| find_closest_in_pallet(*x, target_nes_palette))
-        .map(|x| Srgb::from_color(x).into_format::<u8>())
-        .map(|x| Color32::from_rgb(x.red, x.green, x.blue))
-        .collect::<Vec<_>>();
-
-    let target_reduced_image = egui::ColorImage {
-        size: source_image.size,
-        pixels: target_nes_pixels,
-    };
-    let target_nes_texture = RetainedImage::from_color_image(
-        "target_imge",
-        target_reduced_image,
-        TextureFilter::Nearest,
-    );
-    data.target_nes_texture = Some(target_nes_texture);
+    // Set in UI
+    data.target_nes_tiled_texture = Some(nes_texture);
 }
 
 fn find_closest_nes(color: Lab) -> Lab {

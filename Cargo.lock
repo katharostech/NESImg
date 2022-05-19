@@ -1205,6 +1205,7 @@ dependencies = [
  "kmeans_colors",
  "once_cell",
  "palette",
+ "rand",
  "rfd",
  "serde",
  "tracing-subscriber",
