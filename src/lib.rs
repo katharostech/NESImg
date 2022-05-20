@@ -2,6 +2,8 @@
 
 mod app;
 mod components;
+mod globals;
+
 pub use app::NesimgGui;
 
 // ----------------------------------------------------------------------------
