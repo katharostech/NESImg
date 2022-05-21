@@ -33,17 +33,6 @@ impl<'a> NesImageViewer<'a> {
     pub fn new(id: &str, image: &'a RetainedImage) -> Self {
         let id = egui::Id::new(id);
 
-        assert_eq!(
-            image.size()[0] % TILE_SIZE_INT[0],
-            0,
-            "Image width must be a multiple by 16"
-        );
-        assert_eq!(
-            image.size()[1] % TILE_SIZE_INT[1],
-            0,
-            "Image heigh must be a multiple of 16"
-        );
-
         Self { id, image }
     }
 
@@ -65,6 +54,8 @@ impl<'a> NesImageViewer<'a> {
             response = response.on_hover_cursor(egui::CursorIcon::Grabbing);
         } else if ui.input().modifiers.command {
             response = response.on_hover_cursor(egui::CursorIcon::Grab);
+        } else {
+            response = response.on_hover_cursor(egui::CursorIcon::Crosshair);
         }
 
         // Zoom the image
@@ -180,11 +171,14 @@ impl Renderer {
                     vec2(1.0, 1.0),
                     vec2(0.0, 1.0)
                 );
+                
                 uniform vec2 u_viewport_size;
                 uniform vec2 u_image_size;
                 uniform vec2 u_offset;
                 uniform float u_zoom;
+
                 out vec2 v_uv;
+
                 void main() {
                     v_uv = uvs[gl_VertexID];
                     gl_Position = vec4(verts[gl_VertexID], 0.0, 1.0) / 2 / vec4(u_viewport_size, 1, 1) * 
@@ -193,12 +187,24 @@ impl Renderer {
             "#,
                 r#"
                 precision mediump float;
+
                 in vec2 v_uv;
                 out vec4 out_color;
+
                 uniform sampler2D u_texture;
-                
+
                 void main() {
-                    out_color = texture(u_texture, v_uv);
+                    vec4 pixel = texture(u_texture, v_uv);
+                    // if (pixel.x > 0.8) {
+                    //     out_color = vec4(1, 1, 1, 1);
+                    // } else if (pixel.x > 0.5) {
+                    //     out_color = vec4(0.66, 0.66, 0.66, 1);
+                    // } else if (pixel.x > 0.2) {
+                    //     out_color = vec4(0.33, 0.33, 0.33, 1);
+                    // } else {
+                    //     out_color = vec4(0.0, 0.0, 0.0, 1);
+                    // }
+                    out_color = pixel;
                 }
             "#,
             );
@@ -216,9 +222,11 @@ impl Renderer {
                         .expect("Cannot create shader");
                     gl.shader_source(shader, &format!("{}\n{}", shader_version, shader_source));
                     gl.compile_shader(shader);
+
                     if !gl.get_shader_compile_status(shader) {
-                        panic!("{}", gl.get_shader_info_log(shader));
+                        panic!("Shader compile error: {}", gl.get_shader_info_log(shader));
                     }
+
                     gl.attach_shader(program, shader);
                     shader
                 })
@@ -278,6 +286,16 @@ impl Renderer {
                 info.viewport_size.x,
                 -info.viewport_size.y,
             );
+
+            // let block_index = gl
+            //     .get_uniform_block_index(self.program, "Image")
+            //     .expect("Missing uniform block index");
+            // gl.uniform_block_binding(self.program, block_index, 0);
+            // gl.bind_buffer_base(
+            //     glow::UNIFORM_BUFFER,
+            //     0,
+            //     Some(info.image_handle.map_or_get_gpu_buffer(gl)),
+            // );
 
             gl.bind_vertex_array(Some(self.va));
             gl.draw_arrays(glow::TRIANGLE_FAN, 0, 4);

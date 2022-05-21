@@ -1,8 +1,10 @@
 use eframe::{egui, epaint::textures::TextureFilter};
-use egui::{ColorImage, Layout, Vec2};
-use std::{fs, io::Read};
-
+use egui::{Color32, ColorImage, Layout, RichText, Ui};
 use egui_extras::RetainedImage;
+use image::GenericImageView;
+use serde::{Deserialize, Serialize};
+use std::{collections::HashSet, fs, io::Read};
+
 use tracing as trc;
 
 use crate::components::{nes_color_picker, NesImageViewer};
@@ -15,23 +17,31 @@ mod keyboard_shortcuts;
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct NesimgGui {
-    #[serde(skip)]
-    image_offset: Vec2,
-    #[serde(skip)]
-    image_zoom: f32,
+    palette: [u8; 13],
+    current_palette: Pallet,
 
     #[serde(skip)]
     source_image: Option<ColorImage>,
     #[serde(skip)]
     source_texture: Option<RetainedImage>,
 
+    dark_mode: bool,
+
     #[serde(skip)]
-    palette: [u8; 13],
+    error_message: Option<String>,
 
     #[serde(skip)]
     open_image_request_sender: flume::Sender<&'static str>,
     #[serde(skip)]
     open_image_response_receiver: flume::Receiver<(&'static str, Vec<u8>)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+enum Pallet {
+    First,
+    Second,
+    Third,
+    Fourth,
 }
 
 impl Default for NesimgGui {
@@ -68,7 +78,7 @@ impl Default for NesimgGui {
                     }
 
                     open_image_response_sender.send((name, contents)).ok();
-                    trc::trace!("Image processed");
+                    trc::trace!("File loaded");
                 } else {
                     trc::trace!("No file picked");
                 }
@@ -76,11 +86,15 @@ impl Default for NesimgGui {
         });
 
         Self {
-            image_offset: Vec2::ZERO,
-            image_zoom: 1.0,
+            dark_mode: true,
             source_image: None,
             source_texture: None,
-            palette: [0x0F; 13],
+            error_message: None,
+            palette: [
+                // Default to simple grayscale pallet
+                0x0F, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D,
+            ],
+            current_palette: Pallet::First,
             open_image_request_sender,
             open_image_response_receiver,
         }
@@ -90,15 +104,31 @@ impl Default for NesimgGui {
 impl NesimgGui {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Default to dark theme
-        cc.egui_ctx.set_visuals(egui::style::Visuals::dark());
-
         // Load previous app state (if any).
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
-        }
+            let gui: NesimgGui = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
 
-        Default::default()
+            if gui.dark_mode {
+                cc.egui_ctx.set_visuals(egui::style::Visuals::dark());
+            }
+
+            gui
+        } else {
+            // Default to dark theme
+            cc.egui_ctx.set_visuals(egui::style::Visuals::dark());
+
+            Default::default()
+        }
+    }
+
+    fn toggle_dark_mode(&mut self, ui: &mut Ui) {
+        if ui.visuals().dark_mode {
+            self.dark_mode = false;
+            ui.ctx().set_visuals(egui::Visuals::light())
+        } else {
+            self.dark_mode = true;
+            ui.ctx().set_visuals(egui::Visuals::dark())
+        }
     }
 }
 
@@ -137,21 +167,17 @@ impl eframe::App for NesimgGui {
         }
 
         // Load the source image if the user has selected one
-        if let Ok((name, image)) = self.open_image_response_receiver.try_recv() {
+        if let Ok((name, bytes)) = self.open_image_response_receiver.try_recv() {
             match name {
                 "source_image" => {
                     trc::trace!("Uploading image to texture");
-                    match egui_extras::image::load_image_bytes(&image) {
+                    match load_image(&bytes) {
                         Ok(i) => {
-                            self.source_image = Some(i.clone());
-                            self.source_texture = Some(RetainedImage::from_color_image(
-                                "source_image",
-                                i,
-                                TextureFilter::Nearest,
-                            ));
+                            self.source_texture = Some(i);
                         }
                         Err(e) => {
-                            println!("Error loading image: {}", e);
+                            trc::error!("Error loading image: {}", e);
+                            self.error_message = Some(e.to_string());
                         }
                     };
                 }
@@ -164,6 +190,18 @@ impl eframe::App for NesimgGui {
             ui.horizontal(|ui| {
                 ui.with_layout(Layout::right_to_left(), |ui| {
                     egui::warn_if_debug_build(ui);
+                    if let Some(message) = &self.error_message {
+                        if ui
+                            .selectable_label(
+                                false,
+                                RichText::new(format!("Error: {}", message)).color(Color32::RED),
+                            )
+                            .on_hover_text("Dismiss")
+                            .clicked()
+                        {
+                            self.error_message = None;
+                        }
+                    }
 
                     ui.with_layout(Layout::left_to_right(), |ui| {
                         ui.menu_button("File", |ui| {
@@ -188,11 +226,7 @@ impl eframe::App for NesimgGui {
 
                         ui.menu_button("UI", |ui| {
                             if ui.button("Toggle Dark Mode").clicked() {
-                                if ui.visuals().dark_mode {
-                                    ui.ctx().set_visuals(egui::Visuals::light())
-                                } else {
-                                    ui.ctx().set_visuals(egui::Visuals::dark())
-                                }
+                                self.toggle_dark_mode(ui);
                             }
                         });
                     });
@@ -201,6 +235,7 @@ impl eframe::App for NesimgGui {
         });
 
         egui::SidePanel::right("side_panel").show(ctx, |ui| {
+            ui.set_width_range(230.0..=f32::INFINITY);
             egui::ScrollArea::vertical().show(ui, |ui| {
                 ui.add_space(ui.spacing().item_spacing.y);
 
@@ -219,24 +254,28 @@ impl eframe::App for NesimgGui {
                 ui.separator();
 
                 ui.horizontal(|ui| {
+                    ui.radio_value(&mut self.current_palette, Pallet::First, "");
                     nes_color_picker(ui, &mut self.palette[0]);
                     nes_color_picker(ui, &mut self.palette[1]);
                     nes_color_picker(ui, &mut self.palette[2]);
                     nes_color_picker(ui, &mut self.palette[3]);
                 });
                 ui.horizontal(|ui| {
+                    ui.radio_value(&mut self.current_palette, Pallet::Second, "");
                     nes_color_picker(ui, &mut self.palette[0]);
                     nes_color_picker(ui, &mut self.palette[4]);
                     nes_color_picker(ui, &mut self.palette[5]);
                     nes_color_picker(ui, &mut self.palette[6]);
                 });
                 ui.horizontal(|ui| {
+                    ui.radio_value(&mut self.current_palette, Pallet::Third, "");
                     nes_color_picker(ui, &mut self.palette[0]);
                     nes_color_picker(ui, &mut self.palette[7]);
                     nes_color_picker(ui, &mut self.palette[8]);
                     nes_color_picker(ui, &mut self.palette[9]);
                 });
                 ui.horizontal(|ui| {
+                    ui.radio_value(&mut self.current_palette, Pallet::Fourth, "");
                     nes_color_picker(ui, &mut self.palette[0]);
                     nes_color_picker(ui, &mut self.palette[10]);
                     nes_color_picker(ui, &mut self.palette[11]);
@@ -246,8 +285,9 @@ impl eframe::App for NesimgGui {
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            if let Some(texture) = &self.source_texture {
-                NesImageViewer::new("image_view", texture).show(ui, frame);
+            ui.set_min_width(100.0);
+            if let Some(image) = &self.source_texture {
+                NesImageViewer::new("image_view", image).show(ui, frame);
             } else {
                 ui.vertical_centered(|ui| {
                     if ui.button("Load Image...").clicked() {
@@ -257,4 +297,60 @@ impl eframe::App for NesimgGui {
             }
         });
     }
+}
+
+pub(crate) fn load_image(bytes: &[u8]) -> anyhow::Result<RetainedImage> {
+    let image = image::load_from_memory(bytes)?;
+
+    if image.width() % 16 != 0 || image.height() % 16 != 0 {
+        anyhow::bail!("Image width and height must be a multiple of 16");
+    }
+
+    let mut colors = HashSet::new();
+
+    for (_, _, pixel) in image.pixels() {
+        colors.insert(pixel);
+    }
+
+    if colors.len() != 4 {
+        anyhow::bail!(
+            "Image must have only 4 colors, but found {} colors",
+            colors.len()
+        );
+    }
+
+    let mut colors_sorted = colors.iter().collect::<Vec<_>>();
+    colors_sorted.sort_unstable_by(|x, y| {
+        let x = x[0] as u16 + x[1] as u16 + x[2] as u16;
+        let y = y[0] as u16 + y[1] as u16 + y[2] as u16;
+        x.cmp(&y)
+    });
+
+    let pixels = image
+        .pixels()
+        .map(|(_, _, x)| {
+            if &x == colors_sorted[0] {
+                Color32::from_rgb(0, 0, 0)
+            } else if &x == colors_sorted[1] {
+                Color32::from_rgb(85, 85, 85)
+            } else if &x == colors_sorted[2] {
+                Color32::from_rgb(170, 170, 170)
+            } else if &x == colors_sorted[3] {
+                Color32::from_rgb(255, 255, 255)
+            } else {
+                unreachable!()
+            }
+        })
+        .collect();
+
+    let final_image = ColorImage {
+        size: [image.width() as usize, image.height() as usize],
+        pixels,
+    };
+
+    Ok(RetainedImage::from_color_image(
+        "source_image",
+        final_image,
+        TextureFilter::Nearest,
+    ))
 }

@@ -31,7 +31,8 @@ clipboard = "0.5.0"
 arboard = "2.1.1"
 tracing = "0.1.34"
 glow = "0.11.2"
-crevice = "0.8.0"
+crevice = { version = "0.8.0" }
+anyhow = "1.0.57"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

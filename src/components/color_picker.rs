@@ -1,9 +1,8 @@
-use egui::{
-    Align, Area, Color32, Frame, Id, Key, Layout, Order, Response, Sense,
-    Ui, Vec2,
-};
+use egui::{Color32, Response, Sense, Ui, Vec2};
 
 use crate::globals::NES_PALETTE_RGB;
+
+use super::popup_under_widget;
 
 /// The border radius used for rendering
 const BORDER_RADIUS: f32 = 2.0;
@@ -12,7 +11,7 @@ const BORDER_RADIUS: f32 = 2.0;
 pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
     let i = (*nes_color_index).min(63) as usize;
     let color = NES_PALETTE_RGB[i];
-    let color = egui::Color32::from_rgb(color.red, color.green, color.blue);
+    let color = egui::Color32::from_rgb(color[0], color[1], color[2]);
 
     let response = color_button(ui, color);
 
@@ -25,7 +24,7 @@ pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
         ui.horizontal_wrapped(|ui| {
             ui.set_max_width(800.0);
             for (i, color) in NES_PALETTE_RGB.iter().enumerate() {
-                let color = egui::Color32::from_rgb(color.red, color.green, color.blue);
+                let color = egui::Color32::from_rgb(color[0], color[1], color[2]);
                 let resp = color_button(ui, color);
 
                 let resp = resp.on_hover_ui(|ui| {
@@ -65,41 +64,4 @@ pub fn color_button(ui: &mut Ui, color: Color32) -> Response {
     }
 
     response
-}
-
-/// Like `egui::popup_under_widget, but pops up to the left, so that the popup doesn't go off the screen
-pub fn popup_under_widget<R>(
-    ui: &Ui,
-    popup_id: Id,
-    widget_response: &Response,
-    add_contents: impl FnOnce(&mut Ui) -> R,
-) -> Option<R> {
-    if ui.memory().is_popup_open(popup_id) {
-        let inner = Area::new(popup_id)
-            .order(Order::Foreground)
-            .default_pos(widget_response.rect.left_bottom())
-            .show(ui.ctx(), |ui| {
-                // Note: we use a separate clip-rect for this area, so the popup can be outside the parent.
-                // See https://github.com/emilk/egui/issues/825
-                let frame = Frame::popup(ui.style());
-                let frame_margin = frame.inner_margin + frame.outer_margin;
-                frame
-                    .show(ui, |ui| {
-                        ui.with_layout(Layout::top_down_justified(Align::LEFT), |ui| {
-                            ui.set_width(widget_response.rect.width() - frame_margin.sum().x);
-                            add_contents(ui)
-                        })
-                        .inner
-                    })
-                    .inner
-            })
-            .inner;
-
-        if ui.input().key_pressed(Key::Escape) || widget_response.clicked_elsewhere() {
-            ui.memory().close_popup();
-        }
-        Some(inner)
-    } else {
-        None
-    }
 }
