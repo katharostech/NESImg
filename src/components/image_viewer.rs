@@ -6,9 +6,12 @@ use egui::{mutex::Mutex, Color32, Rect, Vec2};
 use egui_extras::RetainedImage;
 use glow::HasContext;
 
+use crate::globals::NES_PALETTE_SHADER_CONST;
+
 pub struct NesImageViewer<'a> {
     id: egui::Id,
     image: &'a RetainedImage,
+    palette: &'a [u8; 13],
 }
 
 #[derive(Clone, Copy)]
@@ -30,10 +33,10 @@ const TILE_SIZE_INT: [usize; 2] = [16, 16];
 const TILE_SIZE: Vec2 = Vec2::new(TILE_SIZE_INT[0] as f32, TILE_SIZE_INT[1] as f32);
 
 impl<'a> NesImageViewer<'a> {
-    pub fn new(id: &str, image: &'a RetainedImage) -> Self {
+    pub fn new(id: &str, image: &'a RetainedImage, palette: &'a [u8; 13]) -> Self {
         let id = egui::Id::new(id);
 
-        Self { id, image }
+        Self { id, image, palette }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -86,6 +89,24 @@ impl<'a> NesImageViewer<'a> {
             image_size: self.image.size_vec2(),
             offset: state.offset,
             zoom: state.zoom,
+            pallet: [
+                self.palette[0] as u32,
+                self.palette[1] as u32,
+                self.palette[2] as u32,
+                self.palette[3] as u32,
+                self.palette[0] as u32,
+                self.palette[4] as u32,
+                self.palette[5] as u32,
+                self.palette[6] as u32,
+                self.palette[0] as u32,
+                self.palette[7] as u32,
+                self.palette[8] as u32,
+                self.palette[9] as u32,
+                self.palette[0] as u32,
+                self.palette[10] as u32,
+                self.palette[11] as u32,
+                self.palette[12] as u32,
+            ],
         };
 
         let painter = ui.painter_at(rect);
@@ -144,6 +165,7 @@ struct PaintInfo {
     image_size: Vec2,
     offset: Vec2,
     zoom: f32,
+    pallet: [u32; 16],
 }
 
 impl Renderer {
@@ -191,27 +213,25 @@ impl Renderer {
                 in vec2 v_uv;
                 out vec4 out_color;
 
+                uniform uint[16] u_pallet;
                 uniform sampler2D u_texture;
+
+                #NES_PALETTE
 
                 void main() {
                     vec4 pixel = texture(u_texture, v_uv);
-                    // if (pixel.x > 0.8) {
-                    //     out_color = vec4(1, 1, 1, 1);
-                    // } else if (pixel.x > 0.5) {
-                    //     out_color = vec4(0.66, 0.66, 0.66, 1);
-                    // } else if (pixel.x > 0.2) {
-                    //     out_color = vec4(0.33, 0.33, 0.33, 1);
-                    // } else {
-                    //     out_color = vec4(0.0, 0.0, 0.0, 1);
-                    // }
-                    out_color = pixel;
+                    // Enumerate the pixel value as one of the four pallet colors
+                    uint idx = uint(ceil(pixel.x * 3));
+
+                    out_color = NES_PALLET[u_pallet[idx]];
                 }
-            "#,
+            "#
+                .replace("#NES_PALETTE", &*NES_PALETTE_SHADER_CONST),
             );
 
             let shader_sources = [
                 (glow::VERTEX_SHADER, vertex_shader_source),
-                (glow::FRAGMENT_SHADER, fragment_shader_source),
+                (glow::FRAGMENT_SHADER, &fragment_shader_source),
             ];
 
             let shaders: Vec<_> = shader_sources
@@ -279,6 +299,10 @@ impl Renderer {
                     .as_ref(),
                 info.image_size.x,
                 info.image_size.y,
+            );
+            gl.uniform_1_u32_slice(
+                gl.get_uniform_location(self.program, "u_pallet").as_ref(),
+                &info.pallet[..],
             );
             gl.uniform_2_f32(
                 gl.get_uniform_location(self.program, "u_viewport_size")

@@ -79,3 +79,25 @@ pub(crate) static NES_PALETTE_RGB: Lazy<[Rgb<u8>; 64]> = Lazy::new(|| {
         Rgb([17, 17, 17]),
     ]
 });
+
+pub(crate) static NES_PALETTE_SHADER_CONST: Lazy<String> = Lazy::new(|| {
+    let color_count = NES_PALETTE_RGB.len();
+    let mut color_list = Vec::new();
+    for color in NES_PALETTE_RGB.iter() {
+        color_list.push(format!(
+            "vec4({:.2}, {:.2}, {:.2}, 1.0)",
+            color[0] as f32 / 255.,
+            color[1] as f32 / 255.,
+            color[2] as f32 / 255.
+        ));
+    }
+    let color_list = color_list.join(",\n");
+
+    format!(
+        r#"const vec4[{color_count}] NES_PALLET = vec4[{color_count}](
+            {color_list}
+        );"#,
+        color_list = color_list,
+        color_count = color_count
+    )
+});

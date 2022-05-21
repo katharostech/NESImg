@@ -287,7 +287,7 @@ impl eframe::App for NesimgGui {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.set_min_width(100.0);
             if let Some(image) = &self.source_texture {
-                NesImageViewer::new("image_view", image).show(ui, frame);
+                NesImageViewer::new("image_view", image, &self.palette).show(ui, frame);
             } else {
                 ui.vertical_centered(|ui| {
                     if ui.button("Load Image...").clicked() {
