@@ -17,7 +17,7 @@ pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
 
     let popup_id = response.id.with("popup");
     if response.clicked() {
-        ui.memory().open_popup(popup_id)
+        ui.memory().toggle_popup(popup_id)
     }
 
     popup_under_widget(ui, popup_id, &response, |ui| {
