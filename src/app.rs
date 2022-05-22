@@ -2,8 +2,15 @@ use eframe::{egui, epaint::textures::TextureFilter};
 use egui::{Color32, ColorImage, Layout, RichText, Ui};
 use egui_extras::RetainedImage;
 use image::GenericImageView;
+use notify::Watcher;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, fs, io::Read};
+use std::{
+    collections::HashSet,
+    fs,
+    io::Read,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use tracing as trc;
 
@@ -38,7 +45,11 @@ pub struct NesimgGui {
     #[serde(skip)]
     open_image_request_sender: flume::Sender<&'static str>,
     #[serde(skip)]
-    open_image_response_receiver: flume::Receiver<(&'static str, Vec<u8>)>,
+    open_image_response_receiver: flume::Receiver<(&'static str, PathBuf)>,
+    #[serde(skip)]
+    file_watcher_path_change_sender: std::sync::mpsc::Sender<PathBuf>,
+    #[serde(skip)]
+    file_watcher_file_changed_receiver: std::sync::mpsc::Receiver<notify::DebouncedEvent>,
 }
 
 #[derive(Copy, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -65,8 +76,7 @@ impl Default for NesimgGui {
         let (open_image_request_sender, open_image_request_receiver) = flume::bounded(1);
         let (open_image_response_sender, open_image_response_receiver) = flume::bounded(1);
 
-        // TODO: Image loading on WASM
-        #[cfg(not(target_arch = "wasm32"))]
+        // Spawn the file dialog thread
         std::thread::spawn(move || {
             while let Ok(name) = open_image_request_receiver.recv() {
                 trc::trace!("Got request for file load: {}", name);
@@ -74,30 +84,44 @@ impl Default for NesimgGui {
                 trc::trace!("Showing file dialog");
                 let file = dialog.pick_file();
 
-                if let Some(file) = file {
-                    trc::debug!(?file, "Picked file");
-
-                    trc::trace!("Opening file...");
-                    let mut file = match fs::OpenOptions::new().read(true).open(file) {
-                        Ok(f) => f,
-                        Err(e) => {
-                            println!("Error: {}", e);
-                            continue;
-                        }
-                    };
-
-                    let mut contents = Vec::new();
-                    trc::trace!("Reading file...");
-                    if let Err(e) = file.read_to_end(&mut contents) {
-                        println!("Error: {}", e);
-                        continue;
-                    }
-
-                    open_image_response_sender.send((name, contents)).ok();
-                    trc::trace!("File loaded");
+                if let Some(path) = file {
+                    open_image_response_sender.send((name, path)).ok();
                 } else {
                     trc::trace!("No file picked");
                 }
+            }
+        });
+
+        let (file_watcher_path_change_sender, file_watcher_path_change_receiver) =
+            std::sync::mpsc::channel();
+        let (file_watcher_file_change_sender, file_watcher_file_changed_receiver) =
+            std::sync::mpsc::channel();
+
+        // Spawn the file watcher thread
+        std::thread::spawn(move || {
+            // This is used to keep the watcher in scope while it listens for changes
+            let mut watcher: Option<notify::RecommendedWatcher> = None;
+            let mut prev_path = None;
+
+            while let Ok(path) = file_watcher_path_change_receiver.recv() {
+                if let Some(mut watcher) = watcher.take() {
+                    if let Some(prev_path) = prev_path.take() {
+                        watcher.unwatch(prev_path).expect("Failed to unwatch file");
+                    }
+                }
+
+                let mut new_watcher = notify::watcher(
+                    file_watcher_file_change_sender.clone(),
+                    Duration::from_secs(1),
+                )
+                .expect("Start file watcher");
+
+                new_watcher
+                    .watch(&path, notify::RecursiveMode::NonRecursive)
+                    .expect("Watch filesystem");
+
+                prev_path = Some(path);
+                watcher = Some(new_watcher);
             }
         });
 
@@ -114,6 +138,8 @@ impl Default for NesimgGui {
             current_pallet: Pallet::First,
             open_image_request_sender,
             open_image_response_receiver,
+            file_watcher_path_change_sender,
+            file_watcher_file_changed_receiver,
         }
     }
 }
@@ -184,11 +210,14 @@ impl eframe::App for NesimgGui {
         }
 
         // Load the source image if the user has selected one
-        if let Ok((name, bytes)) = self.open_image_response_receiver.try_recv() {
+        if let Ok((name, path)) = self.open_image_response_receiver.try_recv() {
             match name {
                 "source_image" => {
-                    trc::trace!("Uploading image to texture");
-                    match load_image(&bytes) {
+                    self.file_watcher_path_change_sender
+                        .send(path.clone())
+                        .expect("Update file watcher");
+
+                    match load_image(&path) {
                         Ok(i) => {
                             let image_size_tiles = i.size_vec2() / TILE_SIZE;
                             let tile_count =
@@ -203,6 +232,31 @@ impl eframe::App for NesimgGui {
                     };
                 }
                 _ => panic!("Unrecognized file loaded"),
+            }
+        }
+
+        // Reload the source image if it has been changed on disk
+        if let Ok(event) = self.file_watcher_file_changed_receiver.try_recv() {
+            if let notify::DebouncedEvent::Write(path) = event {
+                match load_image(&path) {
+                    Ok(i) => {
+                        if let Some(image) = &self.source_image {
+                            if image.size != i.size() {
+                                let image_size_tiles = i.size_vec2() / TILE_SIZE;
+                                let tile_count =
+                                    (image_size_tiles.x * image_size_tiles.y).floor() as u32;
+                                self.tile_pallets =
+                                    (0..tile_count).into_iter().map(|_| 0).collect();
+                            }
+                        }
+
+                        self.source_texture = Some(i);
+                    }
+                    Err(e) => {
+                        trc::error!("Error re-loading image: {}", e);
+                        self.error_message = Some(e.to_string());
+                    }
+                };
             }
         }
 
@@ -327,8 +381,13 @@ impl eframe::App for NesimgGui {
     }
 }
 
-pub(crate) fn load_image(bytes: &[u8]) -> anyhow::Result<RetainedImage> {
-    let image = image::load_from_memory(bytes)?;
+pub(crate) fn load_image(path: &Path) -> anyhow::Result<RetainedImage> {
+    let mut file = fs::OpenOptions::new().read(true).open(path)?;
+
+    let mut bytes = Vec::new();
+    file.read_to_end(&mut bytes)?;
+
+    let image = image::load_from_memory(&bytes)?;
 
     if image.width() % 16 != 0 || image.height() % 16 != 0 {
         anyhow::bail!("Image width and height must be a multiple of 16");
