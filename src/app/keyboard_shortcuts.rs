@@ -60,6 +60,7 @@ pub(crate) static KEYBOARD_SHORTCUTS: Lazy<HashMap<Action, KeyboardShortcut>> = 
         Action::LoadImage,
         (Modifiers::COMMAND.into(), Key::O).into(),
     );
+    shortcuts.insert(Action::Save, (Modifiers::COMMAND.into(), Key::S).into());
 
     shortcuts
 });

@@ -6,14 +6,16 @@ use egui::{mutex::Mutex, Color32, Rect, Vec2};
 use egui_extras::RetainedImage;
 use glow::HasContext;
 
-use crate::globals::{NES_PALLET_SHADER_CONST, TILE_SIZE, TILE_SIZE_INT};
+use crate::{
+    app::ImagePalletData,
+    globals::{NES_PALLET_SHADER_CONST, TILE_SIZE, TILE_SIZE_INT},
+};
 
 pub struct NesImageViewer<'a> {
     id: egui::Id,
     image: &'a RetainedImage,
-    pallet: &'a [u8; 13],
-    tile_pallets: &'a mut [u8],
     current_pallet: u8,
+    pallet: &'a mut ImagePalletData,
 }
 
 #[derive(Clone, Copy)]
@@ -32,20 +34,18 @@ impl Default for ViewerState {
 }
 
 impl<'a> NesImageViewer<'a> {
-    pub fn new(
+    pub(crate) fn new(
         id: &str,
         image: &'a RetainedImage,
-        pallet: &'a [u8; 13],
         current_pallet: u8,
-        tile_pallets: &'a mut [u8],
+        pallet_data: &'a mut ImagePalletData,
     ) -> Self {
         let id = egui::Id::new(id);
 
         Self {
             id,
             image,
-            pallet,
-            tile_pallets,
+            pallet: pallet_data,
             current_pallet,
         }
     }
@@ -95,7 +95,7 @@ impl<'a> NesImageViewer<'a> {
             (renderer, state)
         };
 
-        let tile_pallets = self.tile_pallets.iter().map(|&x| x as u32).collect();
+        let tile_pallets = self.pallet.tile_pallets.iter().map(|&x| x as u32).collect();
 
         let paint_info = PaintInfo {
             texture_id: self.image.texture_id(ui.ctx()),
@@ -104,22 +104,22 @@ impl<'a> NesImageViewer<'a> {
             offset: state.offset,
             zoom: state.zoom,
             pallet: [
-                self.pallet[0] as u32,
-                self.pallet[1] as u32,
-                self.pallet[2] as u32,
-                self.pallet[3] as u32,
-                self.pallet[0] as u32,
-                self.pallet[4] as u32,
-                self.pallet[5] as u32,
-                self.pallet[6] as u32,
-                self.pallet[0] as u32,
-                self.pallet[7] as u32,
-                self.pallet[8] as u32,
-                self.pallet[9] as u32,
-                self.pallet[0] as u32,
-                self.pallet[10] as u32,
-                self.pallet[11] as u32,
-                self.pallet[12] as u32,
+                self.pallet.colors[0] as u32,
+                self.pallet.colors[1] as u32,
+                self.pallet.colors[2] as u32,
+                self.pallet.colors[3] as u32,
+                self.pallet.colors[0] as u32,
+                self.pallet.colors[4] as u32,
+                self.pallet.colors[5] as u32,
+                self.pallet.colors[6] as u32,
+                self.pallet.colors[0] as u32,
+                self.pallet.colors[7] as u32,
+                self.pallet.colors[8] as u32,
+                self.pallet.colors[9] as u32,
+                self.pallet.colors[0] as u32,
+                self.pallet.colors[10] as u32,
+                self.pallet.colors[11] as u32,
+                self.pallet.colors[12] as u32,
             ],
             tile_pallets,
         };
@@ -171,7 +171,7 @@ impl<'a> NesImageViewer<'a> {
 
                 if response.is_pointer_button_down_on() {
                     response.mark_changed();
-                    self.tile_pallets[mouse_tile_idx] = self.current_pallet;
+                    self.pallet.tile_pallets[mouse_tile_idx] = self.current_pallet;
                 }
             }
         }

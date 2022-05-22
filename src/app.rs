@@ -1,3 +1,4 @@
+use anyhow::Context;
 use eframe::{egui, epaint::textures::TextureFilter};
 use egui::{Color32, ColorImage, Layout, RichText, Ui};
 use egui_extras::RetainedImage;
@@ -6,7 +7,7 @@ use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashSet,
-    fs,
+    fs::{self, OpenOptions},
     io::Read,
     path::{Path, PathBuf},
     time::Duration,
@@ -23,21 +24,26 @@ use self::keyboard_shortcuts::KEYBOARD_SHORTCUTS;
 
 mod keyboard_shortcuts;
 
+struct SourceImage {
+    path: PathBuf,
+    image: ColorImage,
+    texture: RetainedImage,
+}
+
 /// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct NesimgGui {
-    pallet: [u8; 13],
     current_pallet: Pallet,
-    #[serde(skip)]
-    tile_pallets: Vec<u8>,
 
     #[serde(skip)]
-    source_image: Option<ColorImage>,
+    pallet: ImagePalletData,
+
     #[serde(skip)]
-    source_texture: Option<RetainedImage>,
+    source_image: Option<SourceImage>,
 
     dark_mode: bool,
+    export_on_save: bool,
 
     #[serde(skip)]
     error_message: Option<String>,
@@ -128,13 +134,9 @@ impl Default for NesimgGui {
         Self {
             dark_mode: true,
             source_image: None,
-            source_texture: None,
             error_message: None,
-            tile_pallets: Vec::new(),
-            pallet: [
-                // Default to simple grayscale pallet
-                0x0F, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D,
-            ],
+            export_on_save: true,
+            pallet: ImagePalletData::default(),
             current_pallet: Pallet::First,
             open_image_request_sender,
             open_image_response_receiver,
@@ -179,17 +181,23 @@ impl NesimgGui {
 pub(crate) enum Action {
     Quit,
     LoadImage,
+    Save,
+    Export,
 }
 
 impl Action {
     fn perform(&self, data: &mut NesimgGui, _ctx: &egui::Context, frame: &mut eframe::Frame) {
-        match self {
-            Action::Quit => frame.quit(),
-            Action::LoadImage => {
-                data.open_image_request_sender
-                    .send("source_image")
-                    .expect("Open file");
-            }
+        if let Err(e) = match self {
+            Action::Quit => Ok(frame.quit()),
+            Action::LoadImage => Ok(data
+                .open_image_request_sender
+                .send("source_image")
+                .expect("Open file")),
+            Action::Save => save_project(data),
+            Action::Export => export_project(data),
+        } {
+            trc::error!("{}", e);
+            data.error_message = Some(e.to_string());
         }
     }
 }
@@ -209,56 +217,7 @@ impl eframe::App for NesimgGui {
             }
         }
 
-        // Load the source image if the user has selected one
-        if let Ok((name, path)) = self.open_image_response_receiver.try_recv() {
-            match name {
-                "source_image" => {
-                    self.file_watcher_path_change_sender
-                        .send(path.clone())
-                        .expect("Update file watcher");
-
-                    match load_image(&path) {
-                        Ok(i) => {
-                            let image_size_tiles = i.size_vec2() / TILE_SIZE;
-                            let tile_count =
-                                (image_size_tiles.x * image_size_tiles.y).floor() as u32;
-                            self.tile_pallets = (0..tile_count).into_iter().map(|_| 0).collect();
-                            self.source_texture = Some(i);
-                        }
-                        Err(e) => {
-                            trc::error!("Error loading image: {}", e);
-                            self.error_message = Some(e.to_string());
-                        }
-                    };
-                }
-                _ => panic!("Unrecognized file loaded"),
-            }
-        }
-
-        // Reload the source image if it has been changed on disk
-        if let Ok(event) = self.file_watcher_file_changed_receiver.try_recv() {
-            if let notify::DebouncedEvent::Write(path) = event {
-                match load_image(&path) {
-                    Ok(i) => {
-                        if let Some(image) = &self.source_image {
-                            if image.size != i.size() {
-                                let image_size_tiles = i.size_vec2() / TILE_SIZE;
-                                let tile_count =
-                                    (image_size_tiles.x * image_size_tiles.y).floor() as u32;
-                                self.tile_pallets =
-                                    (0..tile_count).into_iter().map(|_| 0).collect();
-                            }
-                        }
-
-                        self.source_texture = Some(i);
-                    }
-                    Err(e) => {
-                        trc::error!("Error re-loading image: {}", e);
-                        self.error_message = Some(e.to_string());
-                    }
-                };
-            }
-        }
+        handle_file_loads(self);
 
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.add_space(1.0);
@@ -284,12 +243,20 @@ impl eframe::App for NesimgGui {
                                 .get(&Action::LoadImage)
                                 .map_or(String::new(), |x| format!("\t{}", x));
 
+                            let save_shortcut = KEYBOARD_SHORTCUTS
+                                .get(&Action::Save)
+                                .map_or(String::new(), |x| format!("\t{}", x));
+
                             let quit_shortcut = KEYBOARD_SHORTCUTS
                                 .get(&Action::Quit)
                                 .map_or(String::new(), |x| format!("\t{}", x));
 
                             if ui.button(format!("Load Image{}", open_shortcut)).clicked() {
                                 Action::LoadImage.perform(self, ctx, frame);
+                            }
+
+                            if ui.button(format!("Save Pallet{}", save_shortcut)).clicked() {
+                                Action::Save.perform(self, ctx, frame);
                             }
 
                             ui.separator();
@@ -330,44 +297,43 @@ impl eframe::App for NesimgGui {
 
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut self.current_pallet, Pallet::First, "");
-                    nes_color_picker(ui, &mut self.pallet[0]);
-                    nes_color_picker(ui, &mut self.pallet[1]);
-                    nes_color_picker(ui, &mut self.pallet[2]);
-                    nes_color_picker(ui, &mut self.pallet[3]);
+                    nes_color_picker(ui, &mut self.pallet.colors[0]);
+                    nes_color_picker(ui, &mut self.pallet.colors[1]);
+                    nes_color_picker(ui, &mut self.pallet.colors[2]);
+                    nes_color_picker(ui, &mut self.pallet.colors[3]);
                 });
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut self.current_pallet, Pallet::Second, "");
-                    nes_color_picker(ui, &mut self.pallet[0]);
-                    nes_color_picker(ui, &mut self.pallet[4]);
-                    nes_color_picker(ui, &mut self.pallet[5]);
-                    nes_color_picker(ui, &mut self.pallet[6]);
+                    nes_color_picker(ui, &mut self.pallet.colors[0]);
+                    nes_color_picker(ui, &mut self.pallet.colors[4]);
+                    nes_color_picker(ui, &mut self.pallet.colors[5]);
+                    nes_color_picker(ui, &mut self.pallet.colors[6]);
                 });
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut self.current_pallet, Pallet::Third, "");
-                    nes_color_picker(ui, &mut self.pallet[0]);
-                    nes_color_picker(ui, &mut self.pallet[7]);
-                    nes_color_picker(ui, &mut self.pallet[8]);
-                    nes_color_picker(ui, &mut self.pallet[9]);
+                    nes_color_picker(ui, &mut self.pallet.colors[0]);
+                    nes_color_picker(ui, &mut self.pallet.colors[7]);
+                    nes_color_picker(ui, &mut self.pallet.colors[8]);
+                    nes_color_picker(ui, &mut self.pallet.colors[9]);
                 });
                 ui.horizontal(|ui| {
                     ui.radio_value(&mut self.current_pallet, Pallet::Fourth, "");
-                    nes_color_picker(ui, &mut self.pallet[0]);
-                    nes_color_picker(ui, &mut self.pallet[10]);
-                    nes_color_picker(ui, &mut self.pallet[11]);
-                    nes_color_picker(ui, &mut self.pallet[12]);
+                    nes_color_picker(ui, &mut self.pallet.colors[0]);
+                    nes_color_picker(ui, &mut self.pallet.colors[10]);
+                    nes_color_picker(ui, &mut self.pallet.colors[11]);
+                    nes_color_picker(ui, &mut self.pallet.colors[12]);
                 });
             });
         });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.set_min_width(100.0);
-            if let Some(image) = &self.source_texture {
+            if let Some(source) = &self.source_image {
                 NesImageViewer::new(
                     "image_view",
-                    image,
-                    &self.pallet,
+                    &source.texture,
                     self.current_pallet.into(),
-                    &mut self.tile_pallets,
+                    &mut self.pallet,
                 )
                 .show(ui, frame);
             } else {
@@ -381,7 +347,69 @@ impl eframe::App for NesimgGui {
     }
 }
 
-pub(crate) fn load_image(path: &Path) -> anyhow::Result<RetainedImage> {
+fn handle_file_loads(data: &mut NesimgGui) {
+    // Load the source image if the user has selected one
+    if let Ok((name, path)) = data.open_image_response_receiver.try_recv() {
+        match name {
+            "source_image" => {
+                data.file_watcher_path_change_sender
+                    .send(path.clone())
+                    .expect("Update file watcher");
+
+                match load_image(&path) {
+                    Ok(loaded) => {
+                        let image_size_tiles = loaded.source_image.texture.size_vec2() / TILE_SIZE;
+                        let tile_count = (image_size_tiles.x * image_size_tiles.y).floor() as u32;
+                        data.pallet.tile_pallets = (0..tile_count).into_iter().map(|_| 0).collect();
+                        data.source_image = Some(loaded.source_image);
+
+                        if let Some(pallet) = loaded.pallet_save {
+                            data.pallet = pallet;
+                        }
+                    }
+                    Err(e) => {
+                        trc::error!("Error loading image: {}", e);
+                        data.error_message = Some(e.to_string());
+                    }
+                };
+            }
+            _ => panic!("Unrecognized file loaded"),
+        }
+    }
+
+    // Reload the source image if it has been changed on disk
+    if let Ok(event) = data.file_watcher_file_changed_receiver.try_recv() {
+        if let notify::DebouncedEvent::Write(path) = event {
+            match load_image(&path) {
+                Ok(loaded) => {
+                    let new_source = loaded.source_image;
+                    if let Some(old_source) = &data.source_image {
+                        if old_source.image.size != new_source.image.size {
+                            let image_size_tiles = new_source.texture.size_vec2() / TILE_SIZE;
+                            let tile_count =
+                                (image_size_tiles.x * image_size_tiles.y).floor() as u32;
+                            data.pallet.tile_pallets =
+                                (0..tile_count).into_iter().map(|_| 0).collect();
+                        }
+                    }
+
+                    data.source_image = Some(new_source);
+                }
+                Err(e) => {
+                    trc::error!("Error re-loading image: {}", e);
+                    data.error_message = Some(e.to_string());
+                }
+            };
+        }
+    }
+}
+
+struct LoadedImage {
+    source_image: SourceImage,
+    pallet_save: Option<ImagePalletData>,
+}
+
+fn load_image(path: &Path) -> anyhow::Result<LoadedImage> {
     let mut file = fs::OpenOptions::new().read(true).open(path)?;
 
     let mut bytes = Vec::new();
@@ -430,14 +458,86 @@ pub(crate) fn load_image(path: &Path) -> anyhow::Result<RetainedImage> {
         })
         .collect();
 
-    let final_image = ColorImage {
+    let image = ColorImage {
         size: [image.width() as usize, image.height() as usize],
         pixels,
     };
 
-    Ok(RetainedImage::from_color_image(
-        "source_image",
-        final_image,
-        TextureFilter::Nearest,
+    let texture =
+        RetainedImage::from_color_image("source_image", image.clone(), TextureFilter::Nearest);
+
+    let source_image = SourceImage {
+        image,
+        texture,
+        path: path.to_owned(),
+    };
+
+    let pallet_file_path = get_pallet_file_path_for_image(&path);
+
+    let pallet_save = if pallet_file_path.exists() {
+        let file = OpenOptions::new()
+            .read(true)
+            .open(pallet_file_path)
+            .context("Open pallet file")?;
+
+        Some(serde_json::from_reader(&file).context("Deserialize pallet file")?)
+    } else {
+        None
+    };
+
+    Ok(LoadedImage {
+        source_image,
+        pallet_save,
+    })
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct ImagePalletData {
+    pub colors: [u8; 13],
+    pub tile_pallets: Vec<u8>,
+}
+
+impl Default for ImagePalletData {
+    fn default() -> Self {
+        Self {
+            colors: [
+                // Default to simple grayscale pallet
+                0x0F, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D,
+            ],
+            tile_pallets: Default::default(),
+        }
+    }
+}
+
+fn save_project(data: &mut NesimgGui) -> anyhow::Result<()> {
+    let source = if let Some(image) = &data.source_image {
+        image
+    } else {
+        return Ok(());
+    };
+
+    let pallet_file_path = get_pallet_file_path_for_image(&source.path);
+
+    let pallet_file = OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(pallet_file_path)
+        .context("Couldn't write to image pallet file")?;
+
+    serde_json::to_writer_pretty(pallet_file, &data.pallet)?;
+
+    Ok(())
+}
+
+fn get_pallet_file_path_for_image(path: &Path) -> PathBuf {
+    let base_filename = path.file_name().expect("File without filename");
+    path.parent().expect("File without parent").join(format!(
+        "{}.pallet.json",
+        base_filename.to_str().expect("Non-unicode filename")
     ))
+}
+
+fn export_project(data: &mut NesimgGui) -> anyhow::Result<()> {
+    Ok(())
 }
