@@ -7,7 +7,10 @@ use std::{collections::HashSet, fs, io::Read};
 
 use tracing as trc;
 
-use crate::components::{nes_color_picker, NesImageViewer};
+use crate::{
+    components::{nes_color_picker, NesImageViewer},
+    globals::TILE_SIZE,
+};
 
 use self::keyboard_shortcuts::KEYBOARD_SHORTCUTS;
 
@@ -17,8 +20,10 @@ mod keyboard_shortcuts;
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)] // if we add new fields, give them default values when deserializing old state
 pub struct NesimgGui {
-    palette: [u8; 13],
-    current_palette: Pallet,
+    pallet: [u8; 13],
+    current_pallet: Pallet,
+    #[serde(skip)]
+    tile_pallets: Vec<u8>,
 
     #[serde(skip)]
     source_image: Option<ColorImage>,
@@ -36,12 +41,23 @@ pub struct NesimgGui {
     open_image_response_receiver: flume::Receiver<(&'static str, Vec<u8>)>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Copy, Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 enum Pallet {
     First,
     Second,
     Third,
     Fourth,
+}
+
+impl Into<u8> for Pallet {
+    fn into(self) -> u8 {
+        match self {
+            Pallet::First => 0,
+            Pallet::Second => 1,
+            Pallet::Third => 2,
+            Pallet::Fourth => 3,
+        }
+    }
 }
 
 impl Default for NesimgGui {
@@ -90,11 +106,12 @@ impl Default for NesimgGui {
             source_image: None,
             source_texture: None,
             error_message: None,
-            palette: [
+            tile_pallets: Vec::new(),
+            pallet: [
                 // Default to simple grayscale pallet
                 0x0F, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D, 0x1D, 0x2D, 0x3D,
             ],
-            current_palette: Pallet::First,
+            current_pallet: Pallet::First,
             open_image_request_sender,
             open_image_response_receiver,
         }
@@ -173,6 +190,10 @@ impl eframe::App for NesimgGui {
                     trc::trace!("Uploading image to texture");
                     match load_image(&bytes) {
                         Ok(i) => {
+                            let image_size_tiles = i.size_vec2() / TILE_SIZE;
+                            let tile_count =
+                                (image_size_tiles.x * image_size_tiles.y).floor() as u32;
+                            self.tile_pallets = (0..tile_count).into_iter().map(|_| 0).collect();
                             self.source_texture = Some(i);
                         }
                         Err(e) => {
@@ -242,7 +263,7 @@ impl eframe::App for NesimgGui {
                 ui.horizontal(|ui| {
                     ui.with_layout(Layout::right_to_left(), |ui| {
                         // We might want a button here later
-                        // if ui.button("ℹ").on_hover_text("Full NES Palette").clicked() {
+                        // if ui.button("ℹ").on_hover_text("Full NES Pallet").clicked() {
                         // }
 
                         ui.with_layout(Layout::left_to_right(), |ui| {
@@ -254,32 +275,32 @@ impl eframe::App for NesimgGui {
                 ui.separator();
 
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.current_palette, Pallet::First, "");
-                    nes_color_picker(ui, &mut self.palette[0]);
-                    nes_color_picker(ui, &mut self.palette[1]);
-                    nes_color_picker(ui, &mut self.palette[2]);
-                    nes_color_picker(ui, &mut self.palette[3]);
+                    ui.radio_value(&mut self.current_pallet, Pallet::First, "");
+                    nes_color_picker(ui, &mut self.pallet[0]);
+                    nes_color_picker(ui, &mut self.pallet[1]);
+                    nes_color_picker(ui, &mut self.pallet[2]);
+                    nes_color_picker(ui, &mut self.pallet[3]);
                 });
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.current_palette, Pallet::Second, "");
-                    nes_color_picker(ui, &mut self.palette[0]);
-                    nes_color_picker(ui, &mut self.palette[4]);
-                    nes_color_picker(ui, &mut self.palette[5]);
-                    nes_color_picker(ui, &mut self.palette[6]);
+                    ui.radio_value(&mut self.current_pallet, Pallet::Second, "");
+                    nes_color_picker(ui, &mut self.pallet[0]);
+                    nes_color_picker(ui, &mut self.pallet[4]);
+                    nes_color_picker(ui, &mut self.pallet[5]);
+                    nes_color_picker(ui, &mut self.pallet[6]);
                 });
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.current_palette, Pallet::Third, "");
-                    nes_color_picker(ui, &mut self.palette[0]);
-                    nes_color_picker(ui, &mut self.palette[7]);
-                    nes_color_picker(ui, &mut self.palette[8]);
-                    nes_color_picker(ui, &mut self.palette[9]);
+                    ui.radio_value(&mut self.current_pallet, Pallet::Third, "");
+                    nes_color_picker(ui, &mut self.pallet[0]);
+                    nes_color_picker(ui, &mut self.pallet[7]);
+                    nes_color_picker(ui, &mut self.pallet[8]);
+                    nes_color_picker(ui, &mut self.pallet[9]);
                 });
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.current_palette, Pallet::Fourth, "");
-                    nes_color_picker(ui, &mut self.palette[0]);
-                    nes_color_picker(ui, &mut self.palette[10]);
-                    nes_color_picker(ui, &mut self.palette[11]);
-                    nes_color_picker(ui, &mut self.palette[12]);
+                    ui.radio_value(&mut self.current_pallet, Pallet::Fourth, "");
+                    nes_color_picker(ui, &mut self.pallet[0]);
+                    nes_color_picker(ui, &mut self.pallet[10]);
+                    nes_color_picker(ui, &mut self.pallet[11]);
+                    nes_color_picker(ui, &mut self.pallet[12]);
                 });
             });
         });
@@ -287,7 +308,14 @@ impl eframe::App for NesimgGui {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.set_min_width(100.0);
             if let Some(image) = &self.source_texture {
-                NesImageViewer::new("image_view", image, &self.palette).show(ui, frame);
+                NesImageViewer::new(
+                    "image_view",
+                    image,
+                    &self.pallet,
+                    self.current_pallet.into(),
+                    &mut self.tile_pallets,
+                )
+                .show(ui, frame);
             } else {
                 ui.vertical_centered(|ui| {
                     if ui.button("Load Image...").clicked() {

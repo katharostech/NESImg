@@ -6,12 +6,14 @@ use egui::{mutex::Mutex, Color32, Rect, Vec2};
 use egui_extras::RetainedImage;
 use glow::HasContext;
 
-use crate::globals::NES_PALETTE_SHADER_CONST;
+use crate::globals::{NES_PALLET_SHADER_CONST, TILE_SIZE, TILE_SIZE_INT};
 
 pub struct NesImageViewer<'a> {
     id: egui::Id,
     image: &'a RetainedImage,
-    palette: &'a [u8; 13],
+    pallet: &'a [u8; 13],
+    tile_pallets: &'a mut [u8],
+    current_pallet: u8,
 }
 
 #[derive(Clone, Copy)]
@@ -29,20 +31,30 @@ impl Default for ViewerState {
     }
 }
 
-const TILE_SIZE_INT: [usize; 2] = [16, 16];
-const TILE_SIZE: Vec2 = Vec2::new(TILE_SIZE_INT[0] as f32, TILE_SIZE_INT[1] as f32);
-
 impl<'a> NesImageViewer<'a> {
-    pub fn new(id: &str, image: &'a RetainedImage, palette: &'a [u8; 13]) -> Self {
+    pub fn new(
+        id: &str,
+        image: &'a RetainedImage,
+        pallet: &'a [u8; 13],
+        current_pallet: u8,
+        tile_pallets: &'a mut [u8],
+    ) -> Self {
         let id = egui::Id::new(id);
 
-        Self { id, image, palette }
+        Self {
+            id,
+            image,
+            pallet,
+            tile_pallets,
+            current_pallet,
+        }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let gl = frame.gl().unwrap();
 
-        let (rect, mut response) = ui.allocate_exact_size(ui.available_size(), egui::Sense::drag());
+        let (rect, mut response) =
+            ui.allocate_exact_size(ui.available_size(), egui::Sense::click_and_drag());
 
         // Pan the image
         let drag_delta =
@@ -83,6 +95,8 @@ impl<'a> NesImageViewer<'a> {
             (renderer, state)
         };
 
+        let tile_pallets = self.tile_pallets.iter().map(|&x| x as u32).collect();
+
         let paint_info = PaintInfo {
             texture_id: self.image.texture_id(ui.ctx()),
             viewport_size: rect.size(),
@@ -90,23 +104,24 @@ impl<'a> NesImageViewer<'a> {
             offset: state.offset,
             zoom: state.zoom,
             pallet: [
-                self.palette[0] as u32,
-                self.palette[1] as u32,
-                self.palette[2] as u32,
-                self.palette[3] as u32,
-                self.palette[0] as u32,
-                self.palette[4] as u32,
-                self.palette[5] as u32,
-                self.palette[6] as u32,
-                self.palette[0] as u32,
-                self.palette[7] as u32,
-                self.palette[8] as u32,
-                self.palette[9] as u32,
-                self.palette[0] as u32,
-                self.palette[10] as u32,
-                self.palette[11] as u32,
-                self.palette[12] as u32,
+                self.pallet[0] as u32,
+                self.pallet[1] as u32,
+                self.pallet[2] as u32,
+                self.pallet[3] as u32,
+                self.pallet[0] as u32,
+                self.pallet[4] as u32,
+                self.pallet[5] as u32,
+                self.pallet[6] as u32,
+                self.pallet[0] as u32,
+                self.pallet[7] as u32,
+                self.pallet[8] as u32,
+                self.pallet[9] as u32,
+                self.pallet[0] as u32,
+                self.pallet[10] as u32,
+                self.pallet[11] as u32,
+                self.pallet[12] as u32,
             ],
+            tile_pallets,
         };
 
         let painter = ui.painter_at(rect);
@@ -149,6 +164,15 @@ impl<'a> NesImageViewer<'a> {
                     state.zoom * 0.5,
                     (state.zoom * 0.5, Color32::GREEN),
                 );
+
+                let image_tiles_wide = self.image.size()[0] / TILE_SIZE_INT[0];
+                let mouse_tile_idx = highlight_rect_image_pos.y as usize * image_tiles_wide
+                    + highlight_rect_image_pos.x as usize;
+
+                if response.is_pointer_button_down_on() {
+                    response.mark_changed();
+                    self.tile_pallets[mouse_tile_idx] = self.current_pallet;
+                }
             }
         }
     }
@@ -157,6 +181,7 @@ impl<'a> NesImageViewer<'a> {
 struct Renderer {
     program: glow::Program,
     va: glow::VertexArray,
+    vb: glow::Buffer,
 }
 
 struct PaintInfo {
@@ -166,6 +191,7 @@ struct PaintInfo {
     offset: Vec2,
     zoom: f32,
     pallet: [u32; 16],
+    tile_pallets: Vec<u32>,
 }
 
 impl Renderer {
@@ -181,52 +207,87 @@ impl Renderer {
 
             let (vertex_shader_source, fragment_shader_source) = (
                 r#"
-                const vec2 verts[4] = vec2[4](
-                    vec2(-1.0, -1.0),
-                    vec2(1.0, -1.0),
-                    vec2(1.0, 1.0),
-                    vec2(-1.0, 1.0)
-                );
-                const vec2 uvs[4] = vec2[4](
+                const vec2 verts[6] = vec2[6](
                     vec2(0.0, 0.0),
                     vec2(1.0, 0.0),
                     vec2(1.0, 1.0),
-                    vec2(0.0, 1.0)
+                    vec2(1.0, 1.0),
+                    vec2(0.0, 1.0),
+                    vec2(0.0, 0.0)
                 );
+                const vec2 uvs[6] = vec2[6](
+                    vec2(0.0, 0.0),
+                    vec2(1.0, 0.0),
+                    vec2(1.0, 1.0),
+                    vec2(1.0, 1.0),
+                    vec2(0.0, 1.0),
+                    vec2(0.0, 0.0)
+                );
+                const float TILE_SIZE = 16;
                 
                 uniform vec2 u_viewport_size;
                 uniform vec2 u_image_size;
                 uniform vec2 u_offset;
                 uniform float u_zoom;
 
+
+                layout (location = 0) in uint in_pallet_idx;
+                flat out uint v_pallet_idx;
                 out vec2 v_uv;
 
                 void main() {
-                    v_uv = uvs[gl_VertexID];
-                    gl_Position = vec4(verts[gl_VertexID], 0.0, 1.0) / 2 / vec4(u_viewport_size, 1, 1) * 
-                        vec4(u_image_size * u_zoom, 1, 1) + vec4(u_offset / u_viewport_size, 0, 0);
+                    // The size of a pixel in viewport space
+                    vec2 v_size_pixel = 2 / u_viewport_size;
+
+                    // The size of a tile in viewport space
+                    vec2 v_size_tile = v_size_pixel * TILE_SIZE;
+
+                    // The size of a pixel in UV space
+                    vec2 u_size_pixel = 1.0 / u_image_size;
+
+                    // The size of a tile in UV space
+                    vec2 u_size_tile = u_size_pixel * TILE_SIZE;
+
+                    uint tile_idx = gl_VertexID / 6;
+                    uint image_tiles_wide = uint(u_image_size.x) / uint(TILE_SIZE);
+                    uint tile_x = tile_idx % image_tiles_wide;
+                    uint tile_y = tile_idx / image_tiles_wide;
+                    vec2 tile_xy = vec2(float(tile_x), float(tile_y));
+
+                    vec2 tile_corner = tile_xy * v_size_tile;
+                    vec2 pos = tile_xy * v_size_tile + v_size_tile * verts[gl_VertexID % 6];
+
+                    v_uv = uvs[gl_VertexID % 6] * u_size_tile + tile_xy * u_size_tile;
+                    v_pallet_idx = in_pallet_idx;
+
+                    vec2 pos_centered = pos - u_image_size * v_size_pixel / 2.0;
+                    vec2 pos_zoomed = pos_centered * u_zoom;
+                    gl_Position = vec4(pos_zoomed + u_offset * v_size_pixel, 0, 1);
                 }
             "#,
                 r#"
                 precision mediump float;
 
                 in vec2 v_uv;
+                flat in uint v_pallet_idx;
                 out vec4 out_color;
 
                 uniform uint[16] u_pallet;
                 uniform sampler2D u_texture;
 
-                #NES_PALETTE
+                #NES_PALLET
 
                 void main() {
                     vec4 pixel = texture(u_texture, v_uv);
                     // Enumerate the pixel value as one of the four pallet colors
                     uint idx = uint(ceil(pixel.x * 3));
 
-                    out_color = NES_PALLET[u_pallet[idx]];
+                    out_color = NES_PALLET[u_pallet[idx + v_pallet_idx * 4]];
+                    // out_color = vec4(vec3(float(v_pallet_idx) / 3), 1);
+                    // out_color = vec4(v_uv, 0, 1);
                 }
             "#
-                .replace("#NES_PALETTE", &*NES_PALETTE_SHADER_CONST),
+                .replace("#NES_PALLET", &*NES_PALLET_SHADER_CONST),
             );
 
             let shader_sources = [
@@ -236,7 +297,8 @@ impl Renderer {
 
             let shaders: Vec<_> = shader_sources
                 .iter()
-                .map(|(shader_type, shader_source)| {
+                .zip(["Vertex", "Fragment"])
+                .map(|((shader_type, shader_source), shader_type_name)| {
                     let shader = gl
                         .create_shader(*shader_type)
                         .expect("Cannot create shader");
@@ -244,7 +306,17 @@ impl Renderer {
                     gl.compile_shader(shader);
 
                     if !gl.get_shader_compile_status(shader) {
-                        panic!("Shader compile error: {}", gl.get_shader_info_log(shader));
+                        panic!(
+                            "{} shader compile error:\n\n{}\n\nShader Source:\n{}",
+                            shader_type_name,
+                            gl.get_shader_info_log(shader),
+                            shader_source
+                                .split("\n")
+                                .enumerate()
+                                .map(|(i, l)| format!("{}: {}", i, l))
+                                .collect::<Vec<_>>()
+                                .join("\n")
+                        );
                     }
 
                     gl.attach_shader(program, shader);
@@ -262,11 +334,10 @@ impl Renderer {
                 gl.delete_shader(shader);
             }
 
-            let va = gl
-                .create_vertex_array()
-                .expect("Cannot create vertex array");
+            let va = gl.create_vertex_array().expect("Create vertex array");
+            let vb = gl.create_buffer().expect("Create vertext buffer");
 
-            Self { program, va }
+            Self { program, va, vb }
         }
     }
 
@@ -311,18 +382,39 @@ impl Renderer {
                 -info.viewport_size.y,
             );
 
-            // let block_index = gl
-            //     .get_uniform_block_index(self.program, "Image")
-            //     .expect("Missing uniform block index");
-            // gl.uniform_block_binding(self.program, block_index, 0);
-            // gl.bind_buffer_base(
-            //     glow::UNIFORM_BUFFER,
-            //     0,
-            //     Some(info.image_handle.map_or_get_gpu_buffer(gl)),
-            // );
+            let image_size_in_tiles = info.image_size / TILE_SIZE;
+            let tile_count = (image_size_in_tiles.x * image_size_in_tiles.y).floor() as i32;
+            assert_eq!(
+                tile_count as usize,
+                info.tile_pallets.len(),
+                "There must be one tile pallet entry per tile"
+            );
+
+            let data = info
+                .tile_pallets
+                .iter()
+                // For the six vertices that make up each tile, they all have the same pallet
+                .map(|&x| [x; 6])
+                .flatten()
+                .collect::<Vec<_>>();
 
             gl.bind_vertex_array(Some(self.va));
-            gl.draw_arrays(glow::TRIANGLE_FAN, 0, 4);
+            gl.bind_buffer(glow::ARRAY_BUFFER, Some(self.vb));
+            gl.buffer_data_u8_slice(
+                glow::ARRAY_BUFFER,
+                bytemuck::cast_slice(&data),
+                glow::DYNAMIC_DRAW,
+            );
+            gl.vertex_attrib_pointer_i32(
+                0,
+                1,
+                glow::UNSIGNED_INT,
+                std::mem::size_of::<u32>() as i32,
+                0,
+            );
+            gl.enable_vertex_attrib_array(0);
+
+            gl.draw_arrays(glow::TRIANGLES, 0, 6 * tile_count);
         }
     }
 }

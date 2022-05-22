@@ -1,6 +1,6 @@
 use egui::{Color32, Response, Sense, Ui, Vec2};
 
-use crate::globals::NES_PALETTE_RGB;
+use crate::globals::NES_PALLET_RGB;
 
 use super::popup_under_widget;
 
@@ -10,7 +10,7 @@ const BORDER_RADIUS: f32 = 2.0;
 /// Allows you to select a color from the NES pallet
 pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
     let i = (*nes_color_index).min(63) as usize;
-    let color = NES_PALETTE_RGB[i];
+    let color = NES_PALLET_RGB[i];
     let color = egui::Color32::from_rgb(color[0], color[1], color[2]);
 
     let response = color_button(ui, color);
@@ -23,12 +23,12 @@ pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
     popup_under_widget(ui, popup_id, &response, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.set_max_width(800.0);
-            for (i, color) in NES_PALETTE_RGB.iter().enumerate() {
+            for (i, color) in NES_PALLET_RGB.iter().enumerate() {
                 let color = egui::Color32::from_rgb(color[0], color[1], color[2]);
                 let resp = color_button(ui, color);
 
                 let resp = resp.on_hover_ui(|ui| {
-                    ui.label(format!("NES Palette Index: ${:02X}", i));
+                    ui.label(format!("NES Pallet Index: ${:02X}", i));
                     ui.label(format!("srgb: ({}, {}, {})", color[0], color[1], color[2]));
                     ui.label(format!(
                         "srgb: #{:02X}{:02X}{:02X}",
