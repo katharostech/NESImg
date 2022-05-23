@@ -17,7 +17,7 @@ use tracing as trc;
 
 use crate::{
     components::{nes_color_picker, NesImageViewer},
-    globals::TILE_SIZE,
+    globals::{NES_PALLET_RGB, TILE_SIZE, TILE_SIZE_INT},
 };
 
 use self::keyboard_shortcuts::KEYBOARD_SHORTCUTS;
@@ -247,6 +247,10 @@ impl eframe::App for NesimgGui {
                                 .get(&Action::Save)
                                 .map_or(String::new(), |x| format!("\t{}", x));
 
+                            let export_shortcut = KEYBOARD_SHORTCUTS
+                                .get(&Action::Export)
+                                .map_or(String::new(), |x| format!("\t{}", x));
+
                             let quit_shortcut = KEYBOARD_SHORTCUTS
                                 .get(&Action::Quit)
                                 .map_or(String::new(), |x| format!("\t{}", x));
@@ -258,6 +262,14 @@ impl eframe::App for NesimgGui {
                             if ui.button(format!("Save Pallet{}", save_shortcut)).clicked() {
                                 Action::Save.perform(self, ctx, frame);
                             }
+
+                            if ui.button(format!("Export{}", export_shortcut)).clicked() {
+                                Action::Export.perform(self, ctx, frame);
+                            }
+
+                            ui.separator();
+
+                            ui.checkbox(&mut self.export_on_save, "Export on Save");
 
                             ui.separator();
 
@@ -409,6 +421,14 @@ struct LoadedImage {
     pallet_save: Option<ImagePalletData>,
 }
 
+/// The four colors used to represent the different pallets internally in the source image
+static GRAYSCALE_COLORS: [Color32; 4] = [
+    Color32::from_rgb(0, 0, 0),
+    Color32::from_rgb(85, 85, 85),
+    Color32::from_rgb(170, 170, 170),
+    Color32::from_rgb(255, 255, 255),
+];
+
 fn load_image(path: &Path) -> anyhow::Result<LoadedImage> {
     let mut file = fs::OpenOptions::new().read(true).open(path)?;
 
@@ -445,13 +465,13 @@ fn load_image(path: &Path) -> anyhow::Result<LoadedImage> {
         .pixels()
         .map(|(_, _, x)| {
             if &x == colors_sorted[0] {
-                Color32::from_rgb(0, 0, 0)
+                GRAYSCALE_COLORS[0]
             } else if &x == colors_sorted[1] {
-                Color32::from_rgb(85, 85, 85)
+                GRAYSCALE_COLORS[1]
             } else if &x == colors_sorted[2] {
-                Color32::from_rgb(170, 170, 170)
+                GRAYSCALE_COLORS[2]
             } else if &x == colors_sorted[3] {
-                Color32::from_rgb(255, 255, 255)
+                GRAYSCALE_COLORS[3]
             } else {
                 unreachable!()
             }
@@ -463,8 +483,8 @@ fn load_image(path: &Path) -> anyhow::Result<LoadedImage> {
         pixels,
     };
 
-    let texture =
-        RetainedImage::from_color_image("source_image", image.clone(), TextureFilter::Nearest);
+    let texture = RetainedImage::from_color_image("source_image", image.clone())
+        .with_texture_filter(TextureFilter::Nearest);
 
     let source_image = SourceImage {
         image,
@@ -497,6 +517,29 @@ pub(crate) struct ImagePalletData {
     pub tile_pallets: Vec<u8>,
 }
 
+impl ImagePalletData {
+    pub(crate) fn get_full_pallet_16(&self) -> [u32; 16] {
+        [
+            self.colors[0] as u32,
+            self.colors[1] as u32,
+            self.colors[2] as u32,
+            self.colors[3] as u32,
+            self.colors[0] as u32,
+            self.colors[4] as u32,
+            self.colors[5] as u32,
+            self.colors[6] as u32,
+            self.colors[0] as u32,
+            self.colors[7] as u32,
+            self.colors[8] as u32,
+            self.colors[9] as u32,
+            self.colors[0] as u32,
+            self.colors[10] as u32,
+            self.colors[11] as u32,
+            self.colors[12] as u32,
+        ]
+    }
+}
+
 impl Default for ImagePalletData {
     fn default() -> Self {
         Self {
@@ -527,6 +570,10 @@ fn save_project(data: &mut NesimgGui) -> anyhow::Result<()> {
 
     serde_json::to_writer_pretty(pallet_file, &data.pallet)?;
 
+    if data.export_on_save {
+        export_project(data)?;
+    }
+
     Ok(())
 }
 
@@ -539,5 +586,59 @@ fn get_pallet_file_path_for_image(path: &Path) -> PathBuf {
 }
 
 fn export_project(data: &mut NesimgGui) -> anyhow::Result<()> {
+    let source = if let Some(image) = &data.source_image {
+        image
+    } else {
+        return Ok(());
+    };
+
+    let get_tile_idx = |pixel_idx: usize| {
+        let image_y = pixel_idx / source.image.width();
+        let image_x = pixel_idx % source.image.width();
+        let tile_x = image_x / TILE_SIZE_INT[0];
+        let tile_y = image_y / TILE_SIZE_INT[1];
+        let tile_idx = tile_y * source.image.width() / TILE_SIZE_INT[0] + tile_x;
+        tile_idx
+    };
+
+    let pixels = source
+        .image
+        .pixels
+        .iter()
+        .enumerate()
+        .map(|(pixel_i, c)| {
+            let tile_i = get_tile_idx(pixel_i);
+            let color_i = GRAYSCALE_COLORS
+                .iter()
+                .enumerate()
+                .find_map(|(i, x)| if c == x { Some(i) } else { None })
+                .expect("Color map error");
+            let pallet_i = data.pallet.tile_pallets[tile_i] as usize;
+            let nes_i = data.pallet.get_full_pallet_16()[pallet_i * 4 + color_i] as usize;
+            NES_PALLET_RGB[nes_i]
+        })
+        .map(|x| [x[0], x[1], x[2], 255])
+        .flatten()
+        .collect();
+
+    let image_buffer: image::RgbaImage = image::ImageBuffer::from_vec(
+        source.image.width() as _,
+        source.image.height() as _,
+        pixels,
+    )
+    .unwrap();
+
+    let base_filename = source.path.file_name().expect("File without name");
+    let export_path = source
+        .path
+        .parent()
+        .expect("File without parent")
+        .join(format!(
+            "{}.export.png",
+            base_filename.to_str().expect("Non-unicode filename")
+        ));
+
+    image_buffer.save(export_path).context("Save export file")?;
+
     Ok(())
 }

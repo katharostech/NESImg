@@ -15,10 +15,10 @@ crate-type = ["cdylib", "rlib"]
 
 
 [dependencies]
-egui = { git = "https://github.com/zicklag/egui.git", branch = "texture-filter-option" }
-eframe = { git = "https://github.com/zicklag/egui.git", branch = "texture-filter-option", features = ["persistence"] }
-egui_glow = { git = "https://github.com/zicklag/egui.git", branch = "texture-filter-option" }
-egui_extras = { git = "https://github.com/zicklag/egui.git", branch = "texture-filter-option", features = ["image"] }
+egui = { git = "https://github.com/emilk/egui.git", rev = "a5076d4" }
+eframe = { git = "https://github.com/emilk/egui.git", rev = "a5076d4", features = ["persistence"] }
+egui_extras = { git = "https://github.com/emilk/egui.git", rev = "a5076d4", features = ["image"] }
+egui_glow = { git = "https://github.com/emilk/egui.git", rev = "a5076d4" }
 serde = { version = "1", features = ["derive"] } # You only need this if you want app persistence
 rfd = "0.8.2"
 flume = "0.10.12"
@@ -35,6 +35,7 @@ anyhow = "1.0.57"
 bytemuck = "1.9.1"
 serde_json = "1.0.81"
 notify = "4.0.17"
+palette = "0.6.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

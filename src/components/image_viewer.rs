@@ -103,24 +103,7 @@ impl<'a> NesImageViewer<'a> {
             image_size: self.image.size_vec2(),
             offset: state.offset,
             zoom: state.zoom,
-            pallet: [
-                self.pallet.colors[0] as u32,
-                self.pallet.colors[1] as u32,
-                self.pallet.colors[2] as u32,
-                self.pallet.colors[3] as u32,
-                self.pallet.colors[0] as u32,
-                self.pallet.colors[4] as u32,
-                self.pallet.colors[5] as u32,
-                self.pallet.colors[6] as u32,
-                self.pallet.colors[0] as u32,
-                self.pallet.colors[7] as u32,
-                self.pallet.colors[8] as u32,
-                self.pallet.colors[9] as u32,
-                self.pallet.colors[0] as u32,
-                self.pallet.colors[10] as u32,
-                self.pallet.colors[11] as u32,
-                self.pallet.colors[12] as u32,
-            ],
+            pallet: self.pallet.get_full_pallet_16(),
             tile_pallets,
         };
 
@@ -282,7 +265,7 @@ impl Renderer {
                     // Enumerate the pixel value as one of the four pallet colors
                     uint idx = uint(ceil(pixel.x * 3));
 
-                    out_color = NES_PALLET[u_pallet[idx + v_pallet_idx * 4]];
+                    out_color = vec4(NES_PALLET[u_pallet[idx + v_pallet_idx * 4]], 1);
                     // out_color = vec4(vec3(float(v_pallet_idx) / 3), 1);
                     // out_color = vec4(v_uv, 0, 1);
                 }

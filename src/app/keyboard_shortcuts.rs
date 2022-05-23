@@ -5,7 +5,7 @@ use once_cell::sync::Lazy;
 
 use super::Action;
 
-#[derive(Hash, Debug, Clone)]
+#[derive(Debug, Clone)]
 pub struct KeyboardShortcut {
     pub modifiers: Modifiers,
     pub key: Key,
@@ -61,6 +61,7 @@ pub(crate) static KEYBOARD_SHORTCUTS: Lazy<HashMap<Action, KeyboardShortcut>> = 
         (Modifiers::COMMAND.into(), Key::O).into(),
     );
     shortcuts.insert(Action::Save, (Modifiers::COMMAND.into(), Key::S).into());
+    shortcuts.insert(Action::Export, (Modifiers::COMMAND.into(), Key::E).into());
 
     shortcuts
 });
