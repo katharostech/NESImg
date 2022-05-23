@@ -19,6 +19,14 @@ pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
     if response.clicked() {
         ui.memory().toggle_popup(popup_id)
     }
+    let response = response.on_hover_ui(|ui| {
+        ui.label(format!("NES Pallet Index: ${:02X}", i));
+        ui.label(format!("srgb: ({}, {}, {})", color[0], color[1], color[2]));
+        ui.label(format!(
+            "srgb: #{:02X}{:02X}{:02X}",
+            color[0], color[1], color[2]
+        ));
+    });
 
     popup_under_widget(ui, popup_id, &response, |ui| {
         ui.horizontal_wrapped(|ui| {
