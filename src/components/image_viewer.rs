@@ -152,7 +152,7 @@ impl<'a> NesImageViewer<'a> {
                 let mouse_tile_idx = highlight_rect_image_pos.y as usize * image_tiles_wide
                     + highlight_rect_image_pos.x as usize;
 
-                if response.is_pointer_button_down_on() {
+                if response.is_pointer_button_down_on() && ui.ctx().input().pointer.primary_down() {
                     response.mark_changed();
                     self.pallet.tile_pallets[mouse_tile_idx] = self.current_pallet;
                 }
