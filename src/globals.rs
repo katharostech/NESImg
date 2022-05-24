@@ -1,4 +1,4 @@
-use egui::{Vec2, color::linear_f32_from_gamma_u8};
+use egui::{color::linear_f32_from_gamma_u8, Vec2};
 use image::Rgb;
 use once_cell::sync::Lazy;
 
@@ -88,7 +88,6 @@ pub(crate) static NES_PALLET_SHADER_CONST: Lazy<String> = Lazy::new(|| {
     let color_count = NES_PALLET_RGB.len();
     let mut color_list = Vec::new();
     for color in NES_PALLET_RGB.iter() {
-        
         // color_list.push(format!(
         //     "vec4({}, {}, {}, 1.0)",
         //     color.red, color.blue, color.green

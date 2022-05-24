@@ -64,9 +64,9 @@ enum Pallet {
     Fourth,
 }
 
-impl Into<u8> for Pallet {
-    fn into(self) -> u8 {
-        match self {
+impl From<Pallet> for u8 {
+    fn from(p: Pallet) -> Self {
+        match p {
             Pallet::First => 0,
             Pallet::Second => 1,
             Pallet::Third => 2,
@@ -190,6 +190,7 @@ pub(crate) enum Action {
 
 impl Action {
     fn perform(&self, data: &mut NesimgGui, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        #[allow(clippy::unit_arg)]
         if let Err(e) = match self {
             Action::Quit => Ok(frame.quit()),
             Action::LoadImage => Ok(data
@@ -405,29 +406,27 @@ fn handle_file_loads(data: &mut NesimgGui, ctx: &egui::Context) {
     }
 
     // Reload the source image if it has been changed on disk
-    if let Ok(event) = data.file_watcher_file_changed_receiver.try_recv() {
-        if let notify::DebouncedEvent::Write(path) = event {
-            match load_image(&path) {
-                Ok(loaded) => {
-                    let new_source = loaded.source_image;
-                    if let Some(old_source) = &data.source_image {
-                        if old_source.image.size != new_source.image.size {
-                            let image_size_tiles = new_source.texture.size_vec2() / TILE_SIZE;
-                            let tile_count =
-                                (image_size_tiles.x * image_size_tiles.y).floor() as u32;
-                            data.pallet.tile_pallets =
-                                (0..tile_count).into_iter().map(|_| 0).collect();
-                        }
+    if let Ok(notify::DebouncedEvent::Write(path)) =
+        data.file_watcher_file_changed_receiver.try_recv()
+    {
+        match load_image(&path) {
+            Ok(loaded) => {
+                let new_source = loaded.source_image;
+                if let Some(old_source) = &data.source_image {
+                    if old_source.image.size != new_source.image.size {
+                        let image_size_tiles = new_source.texture.size_vec2() / TILE_SIZE;
+                        let tile_count = (image_size_tiles.x * image_size_tiles.y).floor() as u32;
+                        data.pallet.tile_pallets = (0..tile_count).into_iter().map(|_| 0).collect();
                     }
+                }
 
-                    data.source_image = Some(new_source);
-                }
-                Err(e) => {
-                    trc::error!("Error re-loading image: {}", e);
-                    send_error_notification(ctx, e.to_string());
-                }
-            };
-        }
+                data.source_image = Some(new_source);
+            }
+            Err(e) => {
+                trc::error!("Error re-loading image: {}", e);
+                send_error_notification(ctx, e.to_string());
+            }
+        };
     }
 }
 
@@ -507,7 +506,7 @@ fn load_image(path: &Path) -> anyhow::Result<LoadedImage> {
         path: path.to_owned(),
     };
 
-    let pallet_file_path = get_pallet_file_path_for_image(&path);
+    let pallet_file_path = get_pallet_file_path_for_image(path);
 
     let pallet_save = if pallet_file_path.exists() {
         let file = OpenOptions::new()
@@ -618,8 +617,7 @@ fn export_project(data: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<(
         let image_x = pixel_idx % source.image.width();
         let tile_x = image_x / TILE_SIZE_INT[0];
         let tile_y = image_y / TILE_SIZE_INT[1];
-        let tile_idx = tile_y * source.image.width() / TILE_SIZE_INT[0] + tile_x;
-        tile_idx
+        tile_y * source.image.width() / TILE_SIZE_INT[0] + tile_x
     };
 
     let pixels = source
@@ -638,8 +636,7 @@ fn export_project(data: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<(
             let nes_i = data.pallet.get_full_pallet_16()[pallet_i * 4 + color_i] as usize;
             NES_PALLET_RGB[nes_i]
         })
-        .map(|x| [x[0], x[1], x[2], 255])
-        .flatten()
+        .flat_map(|x| [x[0], x[1], x[2], 255])
         .collect();
 
     let image_buffer: image::RgbaImage = image::ImageBuffer::from_vec(

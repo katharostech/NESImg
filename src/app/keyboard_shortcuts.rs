@@ -55,13 +55,10 @@ impl std::fmt::Display for KeyboardShortcut {
 pub(crate) static KEYBOARD_SHORTCUTS: Lazy<HashMap<Action, KeyboardShortcut>> = Lazy::new(|| {
     let mut shortcuts = HashMap::default();
 
-    shortcuts.insert(Action::Quit, (Modifiers::COMMAND.into(), Key::Q).into());
-    shortcuts.insert(
-        Action::LoadImage,
-        (Modifiers::COMMAND.into(), Key::O).into(),
-    );
-    shortcuts.insert(Action::Save, (Modifiers::COMMAND.into(), Key::S).into());
-    shortcuts.insert(Action::Export, (Modifiers::COMMAND.into(), Key::E).into());
+    shortcuts.insert(Action::Quit, (Modifiers::COMMAND, Key::Q).into());
+    shortcuts.insert(Action::LoadImage, (Modifiers::COMMAND, Key::O).into());
+    shortcuts.insert(Action::Save, (Modifiers::COMMAND, Key::S).into());
+    shortcuts.insert(Action::Export, (Modifiers::COMMAND, Key::E).into());
 
     shortcuts.insert(Action::SwitchToPallet1, (Modifiers::NONE, Key::Num1).into());
     shortcuts.insert(Action::SwitchToPallet2, (Modifiers::NONE, Key::Num2).into());

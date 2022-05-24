@@ -85,7 +85,7 @@ impl<'a> NesImageViewer<'a> {
                 state.offset += drag_delta;
                 state.zoom += zoom_delta;
                 state.zoom = state.zoom.max(0.1);
-                state.clone()
+                *state
             };
 
             let renderer = data_store
@@ -294,7 +294,7 @@ impl Renderer {
                             shader_type_name,
                             gl.get_shader_info_log(shader),
                             shader_source
-                                .split("\n")
+                                .split('\n')
                                 .enumerate()
                                 .map(|(i, l)| format!("{}: {}", i, l))
                                 .collect::<Vec<_>>()
@@ -377,8 +377,7 @@ impl Renderer {
                 .tile_pallets
                 .iter()
                 // For the six vertices that make up each tile, they all have the same pallet
-                .map(|&x| [x; 6])
-                .flatten()
+                .flat_map(|&x| [x; 6])
                 .collect::<Vec<_>>();
 
             gl.bind_vertex_array(Some(self.va));
