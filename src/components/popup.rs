@@ -5,7 +5,7 @@ struct State {
     size: Vec2,
 }
 
-/// Like `egui::popup_under_widget, but pops up to the left, so that the popup doesn't go off the screen
+/// Like [`egui::popup_below_widget`], but pops up to the left, so that the popup doesn't go off the screen
 pub(crate) fn popup_under_widget<R>(
     ui: &Ui,
     popup_id: Id,
@@ -27,6 +27,7 @@ pub(crate) fn popup_under_widget<R>(
             min: widget_response.rect.left_bottom(),
             max: widget_response.rect.left_bottom() + state.size,
         };
+
         let inner = Area::new(popup_id)
             .order(Order::Foreground)
             .fixed_pos(constrain_window_rect_to_area(ui.ctx(), rect, None).min)

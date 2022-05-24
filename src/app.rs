@@ -1,8 +1,9 @@
 use anyhow::Context;
 use eframe::{egui, epaint::textures::TextureFilter};
-use egui::{Color32, ColorImage, Layout, RichText, Ui};
+use egui::{Color32, ColorImage, Layout, Ui};
 use egui_extras::RetainedImage;
 use image::GenericImageView;
+use native_dialog::FileDialog;
 use notify::Watcher;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -16,7 +17,7 @@ use std::{
 use tracing as trc;
 
 use crate::{
-    components::{nes_color_picker, NesImageViewer},
+    components::{nes_color_picker, notifications, NesImageViewer, Notification},
     globals::{NES_PALLET_RGB, TILE_SIZE, TILE_SIZE_INT},
 };
 
@@ -44,9 +45,6 @@ pub struct NesimgGui {
 
     dark_mode: bool,
     export_on_save: bool,
-
-    #[serde(skip)]
-    error_message: Option<String>,
 
     #[serde(skip)]
     open_image_request_sender: flume::Sender<&'static str>,
@@ -86,9 +84,11 @@ impl Default for NesimgGui {
         std::thread::spawn(move || {
             while let Ok(name) = open_image_request_receiver.recv() {
                 trc::trace!("Got request for file load: {}", name);
-                let dialog = rfd::FileDialog::new().add_filter("PNG", &["png"]);
-                trc::trace!("Showing file dialog");
-                let file = dialog.pick_file();
+                let file = FileDialog::new()
+                    .set_location("~/Desktop")
+                    .add_filter("PNG Image", &["png"])
+                    .show_open_single_file()
+                    .expect("Show file dialog");
 
                 if let Some(path) = file {
                     open_image_response_sender.send((name, path)).ok();
@@ -134,7 +134,6 @@ impl Default for NesimgGui {
         Self {
             dark_mode: true,
             source_image: None,
-            error_message: None,
             export_on_save: true,
             pallet: ImagePalletData::default(),
             current_pallet: Pallet::First,
@@ -183,21 +182,29 @@ pub(crate) enum Action {
     LoadImage,
     Save,
     Export,
+    SwitchToPallet1,
+    SwitchToPallet2,
+    SwitchToPallet3,
+    SwitchToPallet4,
 }
 
 impl Action {
-    fn perform(&self, data: &mut NesimgGui, _ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn perform(&self, data: &mut NesimgGui, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if let Err(e) = match self {
             Action::Quit => Ok(frame.quit()),
             Action::LoadImage => Ok(data
                 .open_image_request_sender
                 .send("source_image")
                 .expect("Open file")),
-            Action::Save => save_project(data),
-            Action::Export => export_project(data),
+            Action::Save => save_project(data, ctx),
+            Action::Export => export_project(data, ctx),
+            Action::SwitchToPallet1 => Ok(data.current_pallet = Pallet::First),
+            Action::SwitchToPallet2 => Ok(data.current_pallet = Pallet::Second),
+            Action::SwitchToPallet3 => Ok(data.current_pallet = Pallet::Third),
+            Action::SwitchToPallet4 => Ok(data.current_pallet = Pallet::Fourth),
         } {
             trc::error!("{}", e);
-            data.error_message = Some(e.to_string());
+            send_error_notification(ctx, e.to_string());
         }
     }
 }
@@ -217,26 +224,14 @@ impl eframe::App for NesimgGui {
             }
         }
 
-        handle_file_loads(self);
+        handle_file_loads(self, ctx);
+
+        notifications(ctx);
 
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.add_space(1.0);
             ui.horizontal(|ui| {
                 ui.with_layout(Layout::right_to_left(), |ui| {
-                    egui::warn_if_debug_build(ui);
-                    if let Some(message) = &self.error_message {
-                        if ui
-                            .selectable_label(
-                                false,
-                                RichText::new(format!("Error: {}", message)).color(Color32::RED),
-                            )
-                            .on_hover_text("Dismiss")
-                            .clicked()
-                        {
-                            self.error_message = None;
-                        }
-                    }
-
                     ui.with_layout(Layout::left_to_right(), |ui| {
                         ui.menu_button("File", |ui| {
                             let open_shortcut = KEYBOARD_SHORTCUTS
@@ -257,14 +252,17 @@ impl eframe::App for NesimgGui {
 
                             if ui.button(format!("Load Image{}", open_shortcut)).clicked() {
                                 Action::LoadImage.perform(self, ctx, frame);
+                                ui.close_menu();
                             }
 
                             if ui.button(format!("Save Pallet{}", save_shortcut)).clicked() {
                                 Action::Save.perform(self, ctx, frame);
+                                ui.close_menu();
                             }
 
                             if ui.button(format!("Export{}", export_shortcut)).clicked() {
                                 Action::Export.perform(self, ctx, frame);
+                                ui.close_menu();
                             }
 
                             ui.separator();
@@ -279,7 +277,7 @@ impl eframe::App for NesimgGui {
                         });
 
                         ui.menu_button("UI", |ui| {
-                            if ui.button("Toggle Dark Mode").clicked() {
+                            if ui.checkbox(&mut self.dark_mode, "Dark Theme").clicked() {
                                 self.toggle_dark_mode(ui);
                             }
                         });
@@ -308,28 +306,44 @@ impl eframe::App for NesimgGui {
                 ui.separator();
 
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.current_pallet, Pallet::First, "");
+                    ui.radio_value(&mut self.current_pallet, Pallet::First, "")
+                        .on_hover_ui(|ui| {
+                            ui.label("Select pallet");
+                            ui.label("Shortcut: 1");
+                        });
                     nes_color_picker(ui, &mut self.pallet.colors[0]);
                     nes_color_picker(ui, &mut self.pallet.colors[1]);
                     nes_color_picker(ui, &mut self.pallet.colors[2]);
                     nes_color_picker(ui, &mut self.pallet.colors[3]);
                 });
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.current_pallet, Pallet::Second, "");
+                    ui.radio_value(&mut self.current_pallet, Pallet::Second, "")
+                        .on_hover_ui(|ui| {
+                            ui.label("Select pallet");
+                            ui.label("Shortcut: 2");
+                        });
                     nes_color_picker(ui, &mut self.pallet.colors[0]);
                     nes_color_picker(ui, &mut self.pallet.colors[4]);
                     nes_color_picker(ui, &mut self.pallet.colors[5]);
                     nes_color_picker(ui, &mut self.pallet.colors[6]);
                 });
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.current_pallet, Pallet::Third, "");
+                    ui.radio_value(&mut self.current_pallet, Pallet::Third, "")
+                        .on_hover_ui(|ui| {
+                            ui.label("Select pallet");
+                            ui.label("Shortcut: 3");
+                        });
                     nes_color_picker(ui, &mut self.pallet.colors[0]);
                     nes_color_picker(ui, &mut self.pallet.colors[7]);
                     nes_color_picker(ui, &mut self.pallet.colors[8]);
                     nes_color_picker(ui, &mut self.pallet.colors[9]);
                 });
                 ui.horizontal(|ui| {
-                    ui.radio_value(&mut self.current_pallet, Pallet::Fourth, "");
+                    ui.radio_value(&mut self.current_pallet, Pallet::Fourth, "")
+                        .on_hover_ui(|ui| {
+                            ui.label("Select pallet");
+                            ui.label("Shortcut: 4");
+                        });
                     nes_color_picker(ui, &mut self.pallet.colors[0]);
                     nes_color_picker(ui, &mut self.pallet.colors[10]);
                     nes_color_picker(ui, &mut self.pallet.colors[11]);
@@ -340,6 +354,7 @@ impl eframe::App for NesimgGui {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.set_min_width(100.0);
+
             if let Some(source) = &self.source_image {
                 NesImageViewer::new(
                     "image_view",
@@ -359,7 +374,7 @@ impl eframe::App for NesimgGui {
     }
 }
 
-fn handle_file_loads(data: &mut NesimgGui) {
+fn handle_file_loads(data: &mut NesimgGui, ctx: &egui::Context) {
     // Load the source image if the user has selected one
     if let Ok((name, path)) = data.open_image_response_receiver.try_recv() {
         match name {
@@ -381,7 +396,7 @@ fn handle_file_loads(data: &mut NesimgGui) {
                     }
                     Err(e) => {
                         trc::error!("Error loading image: {}", e);
-                        data.error_message = Some(e.to_string());
+                        send_error_notification(ctx, e.to_string());
                     }
                 };
             }
@@ -409,7 +424,7 @@ fn handle_file_loads(data: &mut NesimgGui) {
                 }
                 Err(e) => {
                     trc::error!("Error re-loading image: {}", e);
-                    data.error_message = Some(e.to_string());
+                    send_error_notification(ctx, e.to_string());
                 }
             };
         }
@@ -552,7 +567,7 @@ impl Default for ImagePalletData {
     }
 }
 
-fn save_project(data: &mut NesimgGui) -> anyhow::Result<()> {
+fn save_project(data: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
     let source = if let Some(image) = &data.source_image {
         image
     } else {
@@ -570,8 +585,14 @@ fn save_project(data: &mut NesimgGui) -> anyhow::Result<()> {
 
     serde_json::to_writer_pretty(pallet_file, &data.pallet)?;
 
+    Notification::new(|ui| {
+        ui.label("Save successful");
+        None
+    })
+    .send(ctx);
+
     if data.export_on_save {
-        export_project(data)?;
+        export_project(data, ctx)?;
     }
 
     Ok(())
@@ -585,7 +606,7 @@ fn get_pallet_file_path_for_image(path: &Path) -> PathBuf {
     ))
 }
 
-fn export_project(data: &mut NesimgGui) -> anyhow::Result<()> {
+fn export_project(data: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
     let source = if let Some(image) = &data.source_image {
         image
     } else {
@@ -640,5 +661,24 @@ fn export_project(data: &mut NesimgGui) -> anyhow::Result<()> {
 
     image_buffer.save(export_path).context("Save export file")?;
 
+    Notification::new(|ui| {
+        ui.label("Export successful");
+        None
+    })
+    .send(ctx);
+
     Ok(())
+}
+
+fn send_error_notification(ctx: &egui::Context, message: String) {
+    Notification::new(move |ui| {
+        Some(
+            ui.horizontal(|ui| {
+                ui.colored_label(Color32::RED, format!("Error: {}", message));
+                ui.button("x").clicked()
+            })
+            .inner,
+        )
+    })
+    .send(ctx);
 }

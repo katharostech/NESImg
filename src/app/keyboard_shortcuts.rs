@@ -63,5 +63,10 @@ pub(crate) static KEYBOARD_SHORTCUTS: Lazy<HashMap<Action, KeyboardShortcut>> = 
     shortcuts.insert(Action::Save, (Modifiers::COMMAND.into(), Key::S).into());
     shortcuts.insert(Action::Export, (Modifiers::COMMAND.into(), Key::E).into());
 
+    shortcuts.insert(Action::SwitchToPallet1, (Modifiers::NONE, Key::Num1).into());
+    shortcuts.insert(Action::SwitchToPallet2, (Modifiers::NONE, Key::Num2).into());
+    shortcuts.insert(Action::SwitchToPallet3, (Modifiers::NONE, Key::Num3).into());
+    shortcuts.insert(Action::SwitchToPallet4, (Modifiers::NONE, Key::Num4).into());
+
     shortcuts
 });
