@@ -31,9 +31,8 @@ struct SourceImage {
     texture: RetainedImage,
 }
 
-/// We derive Deserialize/Serialize so we can persist app state on shutdown.
 #[derive(serde::Deserialize, serde::Serialize)]
-#[serde(default)] // if we add new fields, give them default values when deserializing old state
+#[serde(default)]
 pub struct NesimgGui {
     current_pallet: Pallet,
 

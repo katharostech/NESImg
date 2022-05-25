@@ -1,13 +1,13 @@
 [package]
-name = "nesimg_gui"
-default-run = "nesimg_gui"
+name = "nesimg"
+default-run = "nesimg"
 version = "0.1.0"
 authors = ["Zicklag <zicklag@katharostech.com>"]
 edition = "2021"
 rust-version = "1.60"
 
 [[bin]]
-name = "nesimg_gui"
+name = "nesimg"
 path = "src/main.rs"
 
 [lib]
@@ -19,7 +19,7 @@ egui = { git = "https://github.com/emilk/egui.git", rev = "a5076d4" }
 eframe = { git = "https://github.com/emilk/egui.git", rev = "a5076d4", features = ["persistence"] }
 egui_extras = { git = "https://github.com/emilk/egui.git", rev = "a5076d4", features = ["image"] }
 egui_glow = { git = "https://github.com/emilk/egui.git", rev = "a5076d4" }
-serde = { version = "1", features = ["derive"] } # You only need this if you want app persistence
+serde = { version = "1", features = ["derive"] } 
 native-dialog = { version = "0.6.3", features = ["windows_dpi_awareness", "windows_visual_styles"] }
 flume = "0.10.12"
 image = { version = "0.24.2", default-features = false, features = ["png"] }

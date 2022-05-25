@@ -11,7 +11,7 @@ fn main() {
     eframe::run_native(
         "NESImg",
         native_options,
-        Box::new(|cc| Box::new(nesimg_gui::NesimgGui::new(cc))),
+        Box::new(|cc| Box::new(nesimg::NesimgGui::new(cc))),
     );
 }
 

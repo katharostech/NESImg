@@ -1357,7 +1357,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "nesimg_gui"
+name = "nesimg"
 version = "0.1.0"
 dependencies = [
  "anyhow",
