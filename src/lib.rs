@@ -1,13 +1,12 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
-mod app;
-mod components;
+mod gui;
 mod globals;
+mod cli;
 
-pub use app::NesimgGui;
+pub use gui::NesimgGui;
 
-// ----------------------------------------------------------------------------
-// When compiling for web:
+pub use cli::run;
 
 #[cfg(target_arch = "wasm32")]
 use eframe::wasm_bindgen::{self, prelude::*};

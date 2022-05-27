@@ -16,10 +16,23 @@ use std::{
 
 use tracing as trc;
 
-use crate::{
-    components::{nes_color_picker, notifications, NesImageViewer, Notification},
-    globals::{NES_PALLET_RGB, TILE_SIZE, TILE_SIZE_INT},
-};
+use crate::globals::{NES_PALLET_RGB, TILE_SIZE, TILE_SIZE_INT};
+
+mod components;
+use components::{nes_color_picker, notifications, NesImageViewer, Notification};
+
+pub fn run_gui() {
+    let native_options = eframe::NativeOptions {
+        renderer: eframe::Renderer::Wgpu,
+        ..Default::default()
+    };
+
+    eframe::run_native(
+        "NESImg",
+        native_options,
+        Box::new(|cc| Box::new(NesimgGui::new(cc))),
+    );
+}
 
 use self::keyboard_shortcuts::KEYBOARD_SHORTCUTS;
 
@@ -354,6 +367,8 @@ impl eframe::App for NesimgGui {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.set_min_width(100.0);
+
+            ctx.inspection_ui(ui);
 
             if let Some(source) = &self.source_image {
                 NesImageViewer::new(
