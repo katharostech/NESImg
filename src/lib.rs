@@ -1,8 +1,9 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
-mod gui;
-mod globals;
 mod cli;
+mod globals;
+mod gui;
+mod project;
 
 pub use gui::NesimgGui;
 

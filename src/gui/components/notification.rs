@@ -46,7 +46,7 @@ static ID: Lazy<Id> = Lazy::new(|| Id::new("__NOTIFICATIONS__"));
 /// Render notifications, if any
 ///
 /// This will automatically render notifications created with [`send_notification()`].
-pub(crate) fn notifications(ctx: &Context) {
+pub(crate) fn show_notifications(ctx: &Context) {
     let notifcations = {
         let mut memory = ctx.memory();
         let state = memory
@@ -93,4 +93,17 @@ pub(crate) fn notifications(ctx: &Context) {
         .get_temp_mut_or_default::<NotificationsState>(*ID);
 
     *state.lock() = new_notifications;
+}
+
+pub fn send_error_notification(ctx: &egui::Context, message: String) {
+    Notification::new(move |ui| {
+        Some(
+            ui.horizontal(|ui| {
+                ui.colored_label(egui::Color32::RED, format!("Error: {}", message));
+                ui.button("x").clicked()
+            })
+            .inner,
+        )
+    })
+    .send(ctx);
 }
