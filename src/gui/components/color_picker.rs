@@ -1,6 +1,6 @@
 use egui::{Color32, Response, Sense, Ui, Vec2};
 
-use crate::globals::NES_PALLET_RGB;
+use crate::constants::NES_PALLET_RGB;
 
 use super::popup_under_widget;
 

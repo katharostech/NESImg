@@ -1,4 +1,4 @@
-use crate::NesimgGui;
+use crate::{gui::RootState, NesimgGui};
 
 use super::NesimgGuiTab;
 
@@ -6,7 +6,7 @@ use super::NesimgGuiTab;
 pub struct MetatilesTab;
 
 impl NesimgGuiTab for MetatilesTab {
-    fn show(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+    fn show(&mut self, root_state: &mut RootState, ctx: &egui::Context, frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.label("Metatiles");
         });

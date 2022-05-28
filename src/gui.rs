@@ -1,10 +1,14 @@
 use eframe::egui;
-use egui::{Key, Layout, Modifiers, Ui};
+use egui::{util::undoer::Undoer, Key, Layout, Modifiers, Ui};
 use native_dialog::FileDialog;
 use notify::Watcher;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, time::Duration};
+use std::{
+    collections::HashMap,
+    path::PathBuf,
+    time::{Duration, Instant},
+};
 
 use tracing as trc;
 
@@ -15,6 +19,8 @@ mod tabs;
 use components::{send_error_notification, show_notifications};
 use keyboard_shortcuts::KeyboardShortcut;
 use tabs::NesimgGuiTab;
+
+use crate::project::Project;
 
 /// Run the GUI
 pub fn run_gui() {
@@ -45,6 +51,7 @@ pub struct NesimgGui {
     dark_mode: bool,
 
     /// The root GUI state, which will be shared with and allowed to be modified by tabs
+    #[serde(skip)]
     state: RootState,
 }
 
@@ -74,17 +81,22 @@ impl Default for NesimgGui {
 }
 
 /// The root GUI state, which will be shared with and allowed to be modified by tabs
-#[derive(Deserialize, Serialize)]
-#[serde(default)]
 pub struct RootState {
-    #[serde(skip)]
+    /// The loaded NESImg project, if any
+    project: Option<ProjectData>,
+
+    /// Start time of the app, which can be used for calculating elapsed time for [`Undoer`]s
+    start: Instant,
+
     open_image_request_sender: flume::Sender<&'static str>,
-    #[serde(skip)]
     open_image_response_receiver: flume::Receiver<(&'static str, PathBuf)>,
-    #[serde(skip)]
     file_watcher_path_change_sender: std::sync::mpsc::Sender<PathBuf>,
-    #[serde(skip)]
     file_watcher_file_changed_receiver: std::sync::mpsc::Receiver<notify::DebouncedEvent>,
+}
+
+struct ProjectData {
+    data: Project,
+    undoer: Undoer<Project>,
 }
 
 impl Default for RootState {
@@ -142,7 +154,10 @@ impl Default for RootState {
                 watcher = Some(new_watcher);
             }
         });
+
         Self {
+            project: None,
+            start: Instant::now(),
             open_image_request_sender,
             open_image_response_receiver,
             file_watcher_path_change_sender,
@@ -156,6 +171,9 @@ impl NesimgGui {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         // Scale up the UI slightly
         cc.egui_ctx.set_pixels_per_point(1.2);
+        // Scale down the feathering slightly to compensate and keep edges from looking a little
+        // blurry
+        cc.egui_ctx.tessellation_options().feathering_size_in_pixels = 0.7;
 
         // Load previous app state (if any).
         if let Some(storage) = cc.storage {
@@ -191,6 +209,7 @@ pub(crate) enum MainGuiAction {
     Quit,
     LoadProject,
     SaveProject,
+    Undo,
 }
 
 impl MainGuiAction {
@@ -204,6 +223,15 @@ impl MainGuiAction {
                 .send("project")
                 .expect("Open file")),
             MainGuiAction::SaveProject => save_project(gui, ctx),
+            MainGuiAction::Undo => {
+                if let Some(project) = &mut gui.state.project {
+                    if let Some(undone) = project.undoer.undo(&project.data) {
+                        project.data = undone.clone();
+                    }
+                }
+
+                Ok(())
+            }
         } {
             trc::error!("{}", e);
             send_error_notification(ctx, e.to_string());
@@ -224,6 +252,7 @@ static MAIN_GUI_SHORTCUTS: Lazy<HashMap<MainGuiAction, KeyboardShortcut>> = Lazy
         MainGuiAction::SaveProject,
         (Modifiers::COMMAND, Key::S).into(),
     );
+    shortcuts.insert(MainGuiAction::Undo, (Modifiers::COMMAND, Key::Z).into());
 
     shortcuts
 });
@@ -262,19 +291,33 @@ impl eframe::App for NesimgGui {
                         ui.close_menu();
                     }
 
-                    if ui
-                        .button(format!("Save Project{}", save_shortcut))
-                        .clicked()
-                    {
-                        MainGuiAction::SaveProject.perform(self, ctx, frame);
-                        ui.close_menu();
-                    }
+                    ui.add_enabled_ui(self.state.project.is_some(), |ui| {
+                        if ui
+                            .button(format!("Save Project{}", save_shortcut))
+                            .clicked()
+                        {
+                            MainGuiAction::SaveProject.perform(self, ctx, frame);
+                            ui.close_menu();
+                        }
+                    });
 
                     ui.separator();
 
                     if ui.button(format!("Quit{}", quit_shortcut)).clicked() {
                         frame.quit();
                     }
+                });
+
+                ui.menu_button("Edit", |ui| {
+                    ui.add_enabled_ui(self.state.project.is_some(), |ui| {
+                        let undo_shortcut = MAIN_GUI_SHORTCUTS
+                            .get(&MainGuiAction::Undo)
+                            .map_or(String::new(), |x| format!("\t{}", x));
+
+                        if ui.button(format!("Undo {}", undo_shortcut)).clicked() {
+                            MainGuiAction::Undo.perform(self, ctx, frame);
+                        }
+                    });
                 });
 
                 ui.menu_button("UI", |ui| {
@@ -284,7 +327,10 @@ impl eframe::App for NesimgGui {
                 });
 
                 // Tab list
-                ui.with_layout(Layout::right_to_left(), |ui| {
+                let tabs = ui.with_layout(Layout::right_to_left(), |ui| {
+                    if self.state.project.is_none() {
+                        ui.set_enabled(false);
+                    }
                     ui.horizontal(|ui| {
                         for (name, _) in &self.tabs {
                             ui.selectable_value(&mut self.current_tab, name.clone(), name);
@@ -292,14 +338,37 @@ impl eframe::App for NesimgGui {
                     });
                     ui.separator();
                 });
+                if self.state.project.is_none() {
+                    tabs.response
+                        .on_hover_text_at_pointer("Open project to edit");
+                }
             });
         });
 
         // Render the actual tab contents
-        for (name, tab) in &mut self.tabs {
-            if name == &self.current_tab {
-                tab.show(ctx, frame);
+        if self.state.project.is_some() {
+            for (name, tab) in &mut self.tabs {
+                if name == &self.current_tab {
+                    tab.show(&mut self.state, ctx, frame);
+                }
             }
+        } else {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                ui.centered_and_justified(|ui| {
+                    ui.set_width(ui.available_height() / 3.0);
+                    ui.set_height(ui.available_width() / 3.0);
+                    if ui.button("Open Project").clicked() {
+                        MainGuiAction::LoadProject.perform(self, ctx, frame);
+                    }
+                });
+            });
+        }
+
+        // Update the undo state for the project, if one has been loaded
+        if let Some(project) = &mut self.state.project {
+            project
+                .undoer
+                .feed_state(self.state.start.elapsed().as_secs_f64(), &project.data);
         }
     }
 }

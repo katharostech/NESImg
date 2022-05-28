@@ -1,9 +1,4 @@
-use std::collections::HashMap;
-
 use egui::{Key, Modifiers};
-use once_cell::sync::Lazy;
-
-use super::MainGuiAction;
 
 #[derive(Debug, Clone)]
 pub struct KeyboardShortcut {

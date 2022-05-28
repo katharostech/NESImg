@@ -1,7 +1,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod cli;
-mod globals;
+mod constants;
 mod gui;
 mod project;
 
