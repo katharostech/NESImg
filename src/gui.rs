@@ -1,5 +1,5 @@
 use anyhow::Context;
-use eframe::egui;
+use eframe::{egui, IconData};
 use egui::{util::undoer::Undoer, Key, Layout, Modifiers, Ui};
 use native_dialog::FileDialog;
 use once_cell::sync::Lazy;
@@ -26,6 +26,7 @@ use self::util::{pick_file, FileFilter};
 pub fn run_gui() {
     let native_options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
+        icon_data: Some(load_icon()),
         ..Default::default()
     };
 
@@ -446,4 +447,19 @@ fn save_project(gui: &mut NesimgGui, _ctx: &egui::Context) -> anyhow::Result<()>
     serde_json::to_writer_pretty(file, &project_data).context("Serialize project to JSON")?;
 
     Ok(())
+}
+
+/// Load the app icon that is built-in to the binary
+fn load_icon() -> IconData {
+    let icon_png_bytes = include_bytes!("../docs/logo.png");
+    let image = image::load_from_memory(icon_png_bytes).expect("Load icon");
+    let width = image.width();
+    let height = image.height();
+    let rgba = image.into_rgba8().as_raw().clone();
+
+    IconData {
+        rgba,
+        width,
+        height,
+    }
 }
