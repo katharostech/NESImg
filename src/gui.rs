@@ -1,26 +1,26 @@
+use anyhow::Context;
 use eframe::egui;
 use egui::{util::undoer::Undoer, Key, Layout, Modifiers, Ui};
 use native_dialog::FileDialog;
-use notify::Watcher;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-    time::{Duration, Instant},
-};
+use std::{collections::HashMap, path::PathBuf, time::Instant};
+use watch::WatchReceiver;
 
 use tracing as trc;
 
 mod components;
 mod keyboard_shortcuts;
 mod tabs;
+mod util;
 
 use components::{send_error_notification, show_notifications};
 use keyboard_shortcuts::KeyboardShortcut;
 use tabs::NesimgGuiTab;
 
 use crate::project::Project;
+
+use self::util::{pick_file, FileFilter};
 
 /// Run the GUI
 pub fn run_gui() {
@@ -84,14 +84,16 @@ impl Default for NesimgGui {
 pub struct RootState {
     /// The loaded NESImg project, if any
     project: Option<ProjectData>,
+    loaded_project: WatchReceiver<Option<LoadedProject>>,
 
     /// Start time of the app, which can be used for calculating elapsed time for [`Undoer`]s
     start: Instant,
+}
 
-    open_image_request_sender: flume::Sender<&'static str>,
-    open_image_response_receiver: flume::Receiver<(&'static str, PathBuf)>,
-    file_watcher_path_change_sender: std::sync::mpsc::Sender<PathBuf>,
-    file_watcher_file_changed_receiver: std::sync::mpsc::Receiver<notify::DebouncedEvent>,
+#[derive(Clone)]
+struct LoadedProject {
+    data: Project,
+    path: PathBuf,
 }
 
 struct ProjectData {
@@ -101,67 +103,10 @@ struct ProjectData {
 
 impl Default for RootState {
     fn default() -> Self {
-        let (open_image_request_sender, open_image_request_receiver) = flume::bounded(1);
-        let (open_image_response_sender, open_image_response_receiver) = flume::bounded(1);
-
-        // Spawn the file dialog thread
-        std::thread::spawn(move || {
-            while let Ok(name) = open_image_request_receiver.recv() {
-                trc::trace!("Got request for file load: {}", name);
-                let file = FileDialog::new()
-                    .set_location("~/Desktop")
-                    .add_filter("PNG Image", &["png"])
-                    .show_open_single_file()
-                    .expect("Show file dialog");
-
-                if let Some(path) = file {
-                    open_image_response_sender.send((name, path)).ok();
-                } else {
-                    trc::trace!("No file picked");
-                }
-            }
-        });
-
-        let (file_watcher_path_change_sender, file_watcher_path_change_receiver) =
-            std::sync::mpsc::channel();
-        let (file_watcher_file_change_sender, file_watcher_file_changed_receiver) =
-            std::sync::mpsc::channel();
-
-        // Spawn the file watcher thread
-        std::thread::spawn(move || {
-            // This is used to keep the watcher in scope while it listens for changes
-            let mut watcher: Option<notify::RecommendedWatcher> = None;
-            let mut prev_path = None;
-
-            while let Ok(path) = file_watcher_path_change_receiver.recv() {
-                if let Some(mut watcher) = watcher.take() {
-                    if let Some(prev_path) = prev_path.take() {
-                        watcher.unwatch(prev_path).expect("Failed to unwatch file");
-                    }
-                }
-
-                let mut new_watcher = notify::watcher(
-                    file_watcher_file_change_sender.clone(),
-                    Duration::from_secs(1),
-                )
-                .expect("Start file watcher");
-
-                new_watcher
-                    .watch(&path, notify::RecursiveMode::NonRecursive)
-                    .expect("Watch filesystem");
-
-                prev_path = Some(path);
-                watcher = Some(new_watcher);
-            }
-        });
-
         Self {
             project: None,
+            loaded_project: watch::channel(None).1,
             start: Instant::now(),
-            open_image_request_sender,
-            open_image_response_receiver,
-            file_watcher_path_change_sender,
-            file_watcher_file_changed_receiver,
         }
     }
 }
@@ -207,7 +152,8 @@ impl NesimgGui {
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub(crate) enum MainGuiAction {
     Quit,
-    LoadProject,
+    NewProject,
+    OpenProject,
     SaveProject,
     Undo,
 }
@@ -217,11 +163,8 @@ impl MainGuiAction {
         #[allow(clippy::unit_arg)]
         if let Err(e) = match self {
             MainGuiAction::Quit => Ok(frame.quit()),
-            MainGuiAction::LoadProject => Ok(gui
-                .state
-                .open_image_request_sender
-                .send("project")
-                .expect("Open file")),
+            MainGuiAction::NewProject => new_project(gui, ctx),
+            MainGuiAction::OpenProject => open_project(gui, ctx),
             MainGuiAction::SaveProject => save_project(gui, ctx),
             MainGuiAction::Undo => {
                 if let Some(project) = &mut gui.state.project {
@@ -245,7 +188,11 @@ static MAIN_GUI_SHORTCUTS: Lazy<HashMap<MainGuiAction, KeyboardShortcut>> = Lazy
 
     shortcuts.insert(MainGuiAction::Quit, (Modifiers::COMMAND, Key::Q).into());
     shortcuts.insert(
-        MainGuiAction::LoadProject,
+        MainGuiAction::NewProject,
+        (Modifiers::COMMAND, Key::N).into(),
+    );
+    shortcuts.insert(
+        MainGuiAction::OpenProject,
         (Modifiers::COMMAND, Key::O).into(),
     );
     shortcuts.insert(
@@ -265,16 +212,30 @@ impl eframe::App for NesimgGui {
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         handle_keyboard_shortcuts(self, ctx, frame);
-        handle_file_loads(self, ctx);
 
         show_notifications(ctx);
+
+        if let Some(loaded) = self.state.loaded_project.get_if_new() {
+            if let Some(loaded) = loaded {
+                let data = loaded.data;
+                let mut undoer = Undoer::default();
+                undoer.feed_state(self.state.start.elapsed().as_secs_f64(), &data);
+
+                self.state.project = Some(ProjectData { data, undoer })
+            } else {
+                self.state.project = None;
+            }
+        }
 
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
             ui.add_space(1.0);
             ui.horizontal(|ui| {
                 ui.menu_button("File", |ui| {
+                    let new_shortcut = MAIN_GUI_SHORTCUTS
+                        .get(&MainGuiAction::NewProject)
+                        .map_or(String::new(), |x| format!("\t{}", x));
                     let open_shortcut = MAIN_GUI_SHORTCUTS
-                        .get(&MainGuiAction::LoadProject)
+                        .get(&MainGuiAction::OpenProject)
                         .map_or(String::new(), |x| format!("\t{}", x));
                     let save_shortcut = MAIN_GUI_SHORTCUTS
                         .get(&MainGuiAction::SaveProject)
@@ -283,11 +244,16 @@ impl eframe::App for NesimgGui {
                         .get(&MainGuiAction::Quit)
                         .map_or(String::new(), |x| format!("\t{}", x));
 
+                    if ui.button(format!("New Project{}", new_shortcut)).clicked() {
+                        MainGuiAction::NewProject.perform(self, ctx, frame);
+                        ui.close_menu();
+                    }
+
                     if ui
                         .button(format!("Open Project{}", open_shortcut))
                         .clicked()
                     {
-                        MainGuiAction::SaveProject.perform(self, ctx, frame);
+                        MainGuiAction::OpenProject.perform(self, ctx, frame);
                         ui.close_menu();
                     }
 
@@ -358,7 +324,7 @@ impl eframe::App for NesimgGui {
                     ui.set_width(ui.available_height() / 3.0);
                     ui.set_height(ui.available_width() / 3.0);
                     if ui.button("Open Project").clicked() {
-                        MainGuiAction::LoadProject.perform(self, ctx, frame);
+                        MainGuiAction::OpenProject.perform(self, ctx, frame);
                     }
                 });
             });
@@ -384,15 +350,100 @@ fn handle_keyboard_shortcuts(gui: &mut NesimgGui, ctx: &egui::Context, frame: &m
     }
 }
 
-fn handle_file_loads(gui: &mut NesimgGui, ctx: &egui::Context) {
-    // Load the source image if the user has selected one
-    if let Ok((name, path)) = gui.state.open_image_response_receiver.try_recv() {
-        match name {
-            _ => panic!("Unrecognized file loaded"),
+fn new_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
+    let (sender, receiver) = watch::channel(None);
+    gui.state.loaded_project = receiver;
+
+    let ctx = ctx.clone();
+    std::thread::spawn(move || {
+        let save_path = FileDialog::new()
+            .add_filter("NESImg Project", &["nesimg"])
+            .show_save_single_file()
+            .expect("Show save dialog");
+
+        let inner = || -> anyhow::Result<()> {
+            if let Some(path) = save_path {
+                let file = std::fs::OpenOptions::new()
+                    .read(true)
+                    .write(true)
+                    .truncate(true)
+                    .create(true)
+                    .open(&path)
+                    .context("Open file to save")?;
+
+                let data = Project::default();
+
+                serde_json::to_writer_pretty(file, &data).context("Serialize project to JSON")?;
+
+                sender.send(Some(LoadedProject { data, path }));
+            }
+
+            Ok(())
+        };
+
+        if let Err(e) = inner() {
+            send_error_notification(&ctx, e.to_string());
         }
-    }
+    });
+
+    Ok(())
 }
 
-fn save_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
-    todo!()
+fn open_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
+    let ctx = ctx.clone();
+    gui.state.loaded_project = pick_file(
+        &[FileFilter {
+            name: "NESImg Projects",
+            extensions: &["nesimg"],
+        }],
+        move |path| {
+            let inner = || -> anyhow::Result<_> {
+                let file = std::fs::OpenOptions::new()
+                    .read(true)
+                    .open(path)
+                    .context("Reading file to load")?;
+                let data: Project = serde_json::from_reader(file).context("Parsing JSON file")?;
+
+                Ok(Some(LoadedProject {
+                    data,
+                    path: path.to_owned(),
+                }))
+            };
+
+            match inner() {
+                Err(e) => {
+                    send_error_notification(&ctx, e.to_string());
+                    None
+                }
+                Ok(r) => r,
+            }
+        },
+    );
+
+    Ok(())
+}
+
+fn save_project(gui: &mut NesimgGui, _ctx: &egui::Context) -> anyhow::Result<()> {
+    let project_path = if let Some(path) = gui.state.loaded_project.get().map(|x| x.path.clone()) {
+        path
+    } else {
+        return Ok(());
+    };
+    let project_data = if let Some(data) = gui.state.project.as_ref().map(|x| x.data.clone()) {
+        data
+    } else {
+        return Ok(());
+    };
+
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(project_path)
+        .context("Open file to save")?;
+
+    serde_json::to_writer_pretty(file, &project_data).context("Serialize project to JSON")?;
+
+    Ok(())
 }
