@@ -5,7 +5,7 @@ use native_dialog::FileDialog;
 use notify::Watcher;
 use watch::WatchReceiver;
 
-use super::{components::send_error_notification, SourceImage};
+use super::{components::send_error_notification, SourceRetainedImage};
 
 /// Ask the user to pick a file, and then optionally watch it for changes
 pub fn pick_file<F, R>(filters: &'static [FileFilter], load_fn: F) -> WatchReceiver<R>
@@ -44,7 +44,7 @@ pub struct FileFilter {
 pub fn load_and_watch_image(
     ctx: &egui::Context,
     path: &Path,
-) -> WatchReceiver<Option<SourceImage>> {
+) -> WatchReceiver<Option<SourceRetainedImage>> {
     let path = path.to_owned();
     let (sender, receiver) = watch::channel(None);
     let ctx = ctx.clone();
@@ -57,6 +57,7 @@ pub fn load_and_watch_image(
                 file.read_to_end(&mut bytes)?;
 
                 let image = RetainedImage::from_image_bytes("a_source_image", &bytes)
+                    .map(|x| x.with_texture_filter(egui::TextureFilter::Nearest))
                     .map_err(|e| anyhow::format_err!("{}", e))?;
 
                 Ok(Arc::new(image))

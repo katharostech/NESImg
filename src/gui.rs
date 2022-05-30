@@ -2,6 +2,7 @@ use anyhow::Context;
 use eframe::{egui, IconData};
 use egui::{util::undoer::Undoer, Key, Layout, Modifiers, Ui};
 use egui_extras::{RetainedImage, Size, StripBuilder};
+use indexmap::IndexMap;
 use native_dialog::FileDialog;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
@@ -11,6 +12,7 @@ use std::{
     sync::Arc,
     time::Instant,
 };
+use ulid::Ulid;
 use watch::WatchReceiver;
 
 use tracing as trc;
@@ -114,20 +116,49 @@ struct LoadedProject {
     path: PathBuf,
 }
 
-pub type SourceImage = Arc<RetainedImage>;
+pub type SourceRetainedImage = Arc<RetainedImage>;
+
+pub struct SourceImage {
+    path: PathBuf,
+    texture: WatchReceiver<Option<SourceRetainedImage>>,
+}
 
 pub struct ProjectState {
     pub data: Project,
     pub path: PathBuf,
     pub undoer: Undoer<Project>,
-    pub source_images: Vec<(PathBuf, WatchReceiver<Option<SourceImage>>)>,
+    pub source_images: IndexMap<Ulid, SourceImage>,
 }
 
 impl ProjectState {
     pub fn add_source(&mut self, ctx: &egui::Context, path: PathBuf) {
-        self.data.sources.push(path.clone());
-        self.source_images
-            .push((path.clone(), load_and_watch_image(ctx, &path)));
+        let id = Ulid::new();
+        self.data.sources.insert(id.clone(), path.clone());
+        self.source_images.insert(
+            id,
+            SourceImage {
+                texture: load_and_watch_image(ctx, &path),
+                path,
+            },
+        );
+    }
+
+    /// Reloads all the source images from the current project source list
+    pub fn reload_source_images(&mut self, ctx: &egui::Context) {
+        self.source_images = self
+            .data
+            .sources
+            .iter()
+            .map(|(id, path)| {
+                (
+                    id.clone(),
+                    SourceImage {
+                        texture: load_and_watch_image(ctx, &path),
+                        path: path.clone(),
+                    },
+                )
+            })
+            .collect();
     }
 }
 
@@ -208,14 +239,14 @@ impl MainGuiAction {
             MainGuiAction::Undo => {
                 if let Some(project) = &mut gui.state.project {
                     if let Some(undone) = project.undoer.undo(&project.data) {
+                        let mut needs_reload = false;
                         if project.data.sources != undone.sources {
-                            project.source_images = undone
-                                .sources
-                                .iter()
-                                .map(|x| (x.to_owned(), load_and_watch_image(ctx, &x)))
-                                .collect();
+                            needs_reload = true;
                         }
                         project.data = undone.clone();
+                        if needs_reload {
+                            project.reload_source_images(ctx);
+                        }
                     }
                 }
 
@@ -267,18 +298,15 @@ impl eframe::App for NesimgGui {
                 let mut undoer = Undoer::default();
                 undoer.feed_state(self.state.start.elapsed().as_secs_f64(), &data);
 
-                let source_images = data
-                    .sources
-                    .iter()
-                    .map(|x| (x.to_owned(), load_and_watch_image(ctx, &x)))
-                    .collect();
-
-                self.state.project = Some(ProjectState {
+                let mut state = ProjectState {
                     data,
                     path: loaded.path,
                     undoer,
-                    source_images,
-                })
+                    source_images: Default::default(),
+                };
+                state.reload_source_images(ctx);
+
+                self.state.project = Some(state);
             } else {
                 self.state.project = None;
             }

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use egui::Vec2;
 use egui_extras::{Size, TableBuilder};
 use watch::WatchReceiver;
 
@@ -9,12 +10,14 @@ use super::NesimgGuiTab;
 
 pub struct SourcesTab {
     new_source: WatchReceiver<Option<PathBuf>>,
+    preview_zoom: f32,
 }
 
 impl Default for SourcesTab {
     fn default() -> Self {
         Self {
             new_source: watch::channel(None).1,
+            preview_zoom: 3.0,
         }
     }
 }
@@ -74,22 +77,38 @@ impl NesimgGuiTab for SourcesTab {
                         });
                     })
                     .body(|mut body| {
-                        project.source_images.retain_mut(|(path, image)| {
+                        project.source_images.retain(|id, image| {
                             let mut keep = true;
 
-                            body.row(20., |mut row| {
+                            const ROW_HEIGHT: f32 = 50.0;
+
+                            body.row(ROW_HEIGHT, |mut row| {
                                 row.col(|ui| {
-                                    ui.label(path.to_string_lossy().as_ref());
+                                    ui.label(image.path.to_string_lossy().as_ref());
                                 });
                                 row.col(|ui| {
-                                    if let Some(image) = image.get() {
-                                        ui.image(image.texture_id(ctx), image.size_vec2());
+                                    if let Some(image) = image.texture.get() {
+                                        let orig_size = image.size_vec2();
+                                        let aspect = orig_size.x / orig_size.y;
+                                        let width = aspect * ROW_HEIGHT;
+                                        let size = Vec2::new(width, ROW_HEIGHT);
+
+                                        ui.image(image.texture_id(ctx), size)
+                                            .on_hover_text("Scroll to zoom")
+                                            .on_hover_ui(|ui| {
+                                                self.preview_zoom +=
+                                                    ui.input().scroll_delta.y * 0.01;
+                                                ui.image(
+                                                    image.texture_id(ctx),
+                                                    size * self.preview_zoom,
+                                                );
+                                            });
                                     }
                                 });
                                 row.col(|ui| {
                                     if ui.button("🗙").clicked() {
                                         keep = false;
-                                        project.data.sources.retain(|p| p == path);
+                                        project.data.sources.remove(id);
                                     };
                                 });
                             });
