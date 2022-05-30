@@ -359,13 +359,13 @@ impl eframe::App for NesimgGui {
                         .get(&MainGuiAction::Quit)
                         .map_or(String::new(), |x| format!("\t{}", x));
 
-                    if ui.button(format!("New Project{}", new_shortcut)).clicked() {
+                    if ui.button(format!("➕ New Project{}", new_shortcut)).clicked() {
                         MainGuiAction::NewProject.perform(self, ctx, frame);
                         ui.close_menu();
                     }
 
                     if ui
-                        .button(format!("Open Project{}", open_shortcut))
+                        .button(format!("🗁 Open Project{}", open_shortcut))
                         .clicked()
                     {
                         MainGuiAction::OpenProject.perform(self, ctx, frame);
@@ -374,7 +374,7 @@ impl eframe::App for NesimgGui {
 
                     ui.add_enabled_ui(self.state.project.is_some(), |ui| {
                         if ui
-                            .button(format!("Save Project{}", save_shortcut))
+                            .button(format!("📩 Save Project{}", save_shortcut))
                             .clicked()
                         {
                             MainGuiAction::SaveProject.perform(self, ctx, frame);
@@ -384,7 +384,7 @@ impl eframe::App for NesimgGui {
 
                     ui.separator();
 
-                    if ui.button(format!("Quit{}", quit_shortcut)).clicked() {
+                    if ui.button(format!("🗙 Quit{}", quit_shortcut)).clicked() {
                         frame.quit();
                     }
                 });
@@ -395,17 +395,17 @@ impl eframe::App for NesimgGui {
                             .get(&MainGuiAction::Undo)
                             .map_or(String::new(), |x| format!("\t{}", x));
 
-                        if ui.button(format!("Undo {}", undo_shortcut)).clicked() {
+                        if ui.button(format!("⮪ Undo {}", undo_shortcut)).clicked() {
                             MainGuiAction::Undo.perform(self, ctx, frame);
                         }
                     });
                 });
 
                 ui.menu_button("View", |ui| {
-                    if ui.checkbox(&mut self.dark_mode, "Dark Theme").clicked() {
+                    if ui.checkbox(&mut self.dark_mode, "🌙 Dark Theme").clicked() {
                         self.toggle_dark_mode(ui);
                     }
-                    ui.checkbox(&mut self.show_help, "Show Help Panel");
+                    ui.checkbox(&mut self.show_help, "ℹ Show Help Panel");
 
                     if cfg!(debug_assertions) {
                         ui.separator();
@@ -488,14 +488,14 @@ impl eframe::App for NesimgGui {
                                     strip.cell(|_| ());
                                     strip.cell(|ui| {
                                         ui.centered_and_justified(|ui| {
-                                            if ui.button("New Project").clicked() {
+                                            if ui.button("➕ New Project").clicked() {
                                                 MainGuiAction::NewProject.perform(self, ctx, frame);
                                             }
                                         });
                                     });
                                     strip.cell(|ui| {
                                         ui.centered_and_justified(|ui| {
-                                            if ui.button("Open Project").clicked() {
+                                            if ui.button("🗁 Open Project").clicked() {
                                                 MainGuiAction::OpenProject
                                                     .perform(self, ctx, frame);
                                             }
