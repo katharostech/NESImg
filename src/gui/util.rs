@@ -5,7 +5,7 @@ use native_dialog::FileDialog;
 use notify::Watcher;
 use watch::WatchReceiver;
 
-use super::{components::send_error_notification, SourceRetainedImage};
+use super::{components::send_error_notification, SourceTexture, SourceTextureStatus};
 
 /// Ask the user to pick a file, and then optionally watch it for changes
 pub fn pick_file<F, R>(filters: &'static [FileFilter], load_fn: F) -> WatchReceiver<R>
@@ -41,13 +41,10 @@ pub struct FileFilter {
 }
 
 /// Load an image and watch for changes
-pub fn load_and_watch_image(
-    ctx: &egui::Context,
-    path: &Path,
-) -> WatchReceiver<Option<SourceRetainedImage>> {
+pub fn load_and_watch_image(path: &Path) -> WatchReceiver<SourceTextureStatus> {
     let path = path.to_owned();
-    let (sender, receiver) = watch::channel(None);
-    let ctx = ctx.clone();
+    let (sender, receiver) = watch::channel(SourceTextureStatus::Loading);
+    let error_sender = sender.clone();
 
     std::thread::spawn(move || {
         let inner = move || -> anyhow::Result<()> {
@@ -65,7 +62,7 @@ pub fn load_and_watch_image(
 
             let image = load_image()?;
 
-            sender.send(Some(image));
+            sender.send(SourceTextureStatus::Found(image));
 
             let (watch_sender, watch_receiver) = std::sync::mpsc::channel();
             let mut watcher = notify::watcher(watch_sender, std::time::Duration::from_secs(1))
@@ -77,7 +74,7 @@ pub fn load_and_watch_image(
                 if let notify::DebouncedEvent::Write(_) = event {
                     let image = load_image()?;
 
-                    sender.send(Some(image));
+                    sender.send(SourceTextureStatus::Found(image));
                 }
             }
 
@@ -85,7 +82,7 @@ pub fn load_and_watch_image(
         };
 
         if let Err(e) = inner() {
-            send_error_notification(&ctx, e.to_string());
+            error_sender.send(SourceTextureStatus::Error(e.to_string()));
         }
     });
 

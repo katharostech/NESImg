@@ -117,11 +117,18 @@ struct LoadedProject {
     path: PathBuf,
 }
 
-pub type SourceRetainedImage = Arc<RetainedImage>;
+pub type SourceTexture = Arc<RetainedImage>;
+
+#[derive(Clone)]
+pub enum SourceTextureStatus {
+    Loading,
+    Error(String),
+    Found(SourceTexture),
+}
 
 pub struct SourceImage {
     path: PathBuf,
-    texture: WatchReceiver<Option<SourceRetainedImage>>,
+    texture: WatchReceiver<SourceTextureStatus>,
 }
 
 pub struct ProjectState {
@@ -132,23 +139,34 @@ pub struct ProjectState {
 }
 
 impl ProjectState {
-    pub fn add_source(&mut self, ctx: &egui::Context, path: PathBuf) {
+    pub fn add_source(&mut self, path: PathBuf) {
         let id = Ulid::new();
-        let absolute_path = path.absolutize().expect("Absolutize").to_path_buf();
-        let relative_path =
-            pathdiff::diff_paths(absolute_path, &self.path).expect("Same filesystem");
+        let absolute_path = path.absolutize().unwrap().to_path_buf();
+        let relative_path = pathdiff::diff_paths(absolute_path, &self.path.absolutize().unwrap())
+            .expect("Same filesystem");
         self.data.sources.insert(id.clone(), relative_path.clone());
         self.source_images.insert(
             id,
             SourceImage {
-                texture: load_and_watch_image(ctx, &path),
+                texture: load_and_watch_image(&path),
                 path: relative_path,
             },
         );
     }
 
+    fn update_source(&mut self, id: Ulid, path: PathBuf) {
+        let absolute_path = path.absolutize().unwrap().to_path_buf();
+        let relative_path = pathdiff::diff_paths(absolute_path, &self.path.absolutize().unwrap())
+            .expect("Same filesystem");
+        *self.data.sources.get_mut(&id).expect("missing source") = relative_path.clone();
+        *self.source_images.get_mut(&id).expect("missing source") = SourceImage {
+            texture: load_and_watch_image(&path),
+            path: relative_path,
+        }
+    }
+
     /// Reloads all the source images from the current project source list
-    pub fn reload_source_images(&mut self, ctx: &egui::Context) {
+    pub fn reload_source_images(&mut self) {
         self.source_images = self
             .data
             .sources
@@ -158,14 +176,13 @@ impl ProjectState {
                     id.clone(),
                     SourceImage {
                         texture: load_and_watch_image(
-                            ctx,
-                            &dbg!(self
+                            &self
                                 .path
                                 .absolutize()
-                                .expect("Absolutize")
+                                .unwrap()
                                 .join(&path)
                                 .absolutize()
-                                .expect("Absoluteize")),
+                                .expect("Absoluteize"),
                         ),
                         path: path.clone(),
                     },
@@ -258,7 +275,7 @@ impl MainGuiAction {
                         }
                         project.data = undone.clone();
                         if needs_reload {
-                            project.reload_source_images(ctx);
+                            project.reload_source_images();
                         }
                     }
                 }
@@ -317,7 +334,7 @@ impl eframe::App for NesimgGui {
                     undoer,
                     source_images: Default::default(),
                 };
-                state.reload_source_images(ctx);
+                state.reload_source_images();
 
                 self.state.project = Some(state);
             } else {
@@ -531,7 +548,7 @@ fn new_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
 
                 sender.send(Some(LoadedProject {
                     data,
-                    path: path.absolutize().expect("Absolutize").to_path_buf(),
+                    path: path.absolutize().unwrap().to_path_buf(),
                 }));
             }
 

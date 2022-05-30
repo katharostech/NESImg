@@ -2,20 +2,23 @@ use std::path::PathBuf;
 
 use egui::Vec2;
 use egui_extras::{Size, TableBuilder};
+use ulid::Ulid;
 use watch::WatchReceiver;
 
-use crate::gui::ProjectState;
+use crate::gui::{ProjectState, SourceTextureStatus};
 
 use super::NesimgGuiTab;
 
 pub struct SourcesTab {
     new_source: WatchReceiver<Option<PathBuf>>,
+    update_source: (Ulid, WatchReceiver<Option<PathBuf>>),
     preview_zoom: f32,
 }
 
 impl Default for SourcesTab {
     fn default() -> Self {
         Self {
+            update_source: (Ulid::default(), watch::channel(None).1),
             new_source: watch::channel(None).1,
             preview_zoom: 3.0,
         }
@@ -31,23 +34,18 @@ impl NesimgGuiTab for SourcesTab {
     ) {
         if let Some(source) = self.new_source.get_if_new() {
             if let Some(source) = source {
-                project.add_source(ctx, source);
+                project.add_source(source);
+            }
+        }
+        if let Some(update) = self.update_source.1.get_if_new() {
+            if let Some(path) = update {
+                project.update_source(self.update_source.0, path);
             }
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
             if ui.button("➕ Add Source").clicked() {
-                let (source_sender, source_receiver) = watch::channel(None);
-                self.new_source = source_receiver;
-
-                std::thread::spawn(move || {
-                    let path = native_dialog::FileDialog::new()
-                        .add_filter("PNG Image", &["png"])
-                        .show_open_single_file()
-                        .expect("File dialog");
-
-                    source_sender.send(path);
-                });
+                self.new_source = browse_for_image_path();
             }
 
             ui.separator();
@@ -84,10 +82,15 @@ impl NesimgGuiTab for SourcesTab {
 
                             body.row(ROW_HEIGHT, |mut row| {
                                 row.col(|ui| {
-                                    ui.label(image.path.to_string_lossy().as_ref());
+                                    ui.horizontal(|ui| {
+                                        ui.label(image.path.to_string_lossy().as_ref());
+                                        if ui.button("Change path").clicked() {
+                                            self.update_source = (*id, browse_for_image_path());
+                                        }
+                                    });
                                 });
-                                row.col(|ui| {
-                                    if let Some(image) = image.texture.get() {
+                                row.col(|ui| match image.texture.get() {
+                                    SourceTextureStatus::Found(image) => {
                                         let orig_size = image.size_vec2();
                                         let aspect = orig_size.x / orig_size.y;
                                         let width = aspect * ROW_HEIGHT;
@@ -102,6 +105,15 @@ impl NesimgGuiTab for SourcesTab {
                                                     image.texture_id(ctx),
                                                     size * self.preview_zoom,
                                                 );
+                                            });
+                                    }
+                                    SourceTextureStatus::Loading => {
+                                        ui.spinner();
+                                    }
+                                    SourceTextureStatus::Error(e) => {
+                                        ui.colored_label(egui::Color32::RED, "Error ℹ")
+                                            .on_hover_ui(|ui| {
+                                                ui.colored_label(egui::Color32::RED, &e);
                                             });
                                     }
                                 });
@@ -123,4 +135,19 @@ impl NesimgGuiTab for SourcesTab {
     fn show_help(&mut self, ui: &mut egui::Ui) {
         ui.label(include_str!("./sources_help.txt"));
     }
+}
+
+fn browse_for_image_path() -> WatchReceiver<Option<PathBuf>> {
+    let (path_sender, path_receiver) = watch::channel(None);
+
+    std::thread::spawn(move || {
+        let path = native_dialog::FileDialog::new()
+            .add_filter("PNG Image", &["png"])
+            .show_open_single_file()
+            .expect("File dialog");
+
+        path_sender.send(path);
+    });
+
+    path_receiver
 }

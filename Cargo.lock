@@ -606,7 +606,7 @@ source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5
 dependencies = [
  "bytemuck",
  "directories-next",
- "egui",
+ "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
  "egui-wgpu",
  "egui-winit",
  "glutin",
@@ -625,10 +625,21 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eb095a8b9feb9b7ff8f00b6776dffcef059538a3f4a91238e03c900e9c9ad9a2"
+dependencies = [
+ "ahash",
+ "epaint 0.18.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nohash-hasher",
+]
+
+[[package]]
+name = "egui"
+version = "0.18.1"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
  "ahash",
- "epaint",
+ "epaint 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
  "nohash-hasher",
  "ron",
  "serde",
@@ -641,7 +652,7 @@ version = "0.18.0"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
  "bytemuck",
- "egui",
+ "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
  "pollster",
  "tracing",
  "type-map",
@@ -655,7 +666,7 @@ version = "0.18.0"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
  "arboard",
- "egui",
+ "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
  "instant",
  "serde",
  "smithay-clipboard",
@@ -665,11 +676,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "egui_demo_lib"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c90fd27c1b563117b50ffde51587f364c517ff89a80e11bb96edacf43a38d4cb"
+dependencies = [
+ "egui 0.18.1 (registry+https://github.com/rust-lang/crates.io-index)",
+ "egui_extras 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "enum-map",
+ "tracing",
+ "unicode_names2",
+]
+
+[[package]]
+name = "egui_extras"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "877bfcce06463cdbcfd7f4efd57608b1384d6d9ae03b33e503fbba1d1a899a52"
+dependencies = [
+ "egui 0.18.1 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
 name = "egui_extras"
 version = "0.18.0"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
- "egui",
+ "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
  "image 0.24.2",
 ]
 
@@ -682,10 +715,51 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "emath"
 version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c223f58c7e38abe1770f367b969f1b3fbd4704b67666bcb65dbb1adb0980ba72"
+
+[[package]]
+name = "emath"
+version = "0.18.0"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
  "bytemuck",
  "serde",
+]
+
+[[package]]
+name = "enum-map"
+version = "2.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1284d66c2ebd284a159491ebc005c6608ef684f4f5db99c960b1837cb74b7067"
+dependencies = [
+ "enum-map-derive",
+ "serde",
+]
+
+[[package]]
+name = "enum-map-derive"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00d1c54e25a57236a790ecf051c2befbb57740c9b86c4273eac378ba84d620d6"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "epaint"
+version = "0.18.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c29567088888e8ac3e8f61bbb2ddc820207ebb8d69eefde5bcefa06d65e4e89"
+dependencies = [
+ "ab_glyph",
+ "ahash",
+ "atomic_refcell",
+ "emath 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "nohash-hasher",
+ "parking_lot 0.12.0",
 ]
 
 [[package]]
@@ -697,7 +771,7 @@ dependencies = [
  "ahash",
  "atomic_refcell",
  "bytemuck",
- "emath",
+ "emath 0.18.0 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
  "nohash-hasher",
  "parking_lot 0.12.0",
  "serde",
@@ -1568,8 +1642,9 @@ dependencies = [
  "console_error_panic_hook",
  "crevice",
  "eframe",
- "egui",
- "egui_extras",
+ "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "egui_demo_lib",
+ "egui_extras 0.18.0 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
  "flume",
  "glow",
  "image 0.24.2",
@@ -2546,6 +2621,12 @@ name = "unicode-width"
 version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3ed742d4ea2bd1176e236172c8429aaf54486e7ac098db29ffe6529e0ce50973"
+
+[[package]]
+name = "unicode_names2"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "eec8e807a365e5c972debc47b8f06d361b37b94cfd18d48f7adc715fb86404dd"
 
 [[package]]
 name = "url"
