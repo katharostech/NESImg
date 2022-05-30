@@ -5,7 +5,7 @@ use native_dialog::FileDialog;
 use notify::Watcher;
 use watch::WatchReceiver;
 
-use super::SourceTextureStatus;
+use super::project_state::SourceTextureStatus;
 
 /// Ask the user to pick a file, and then optionally watch it for changes
 pub fn pick_file<F, R>(filters: &'static [FileFilter], load_fn: F) -> WatchReceiver<R>

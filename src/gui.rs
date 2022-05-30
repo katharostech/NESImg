@@ -1,25 +1,19 @@
 use anyhow::Context;
 use eframe::{egui, IconData};
 use egui::{util::undoer::Undoer, Key, Layout, Modifiers, Ui};
-use egui_extras::{RetainedImage, Size, StripBuilder};
-use indexmap::IndexMap;
+use egui_extras::{Size, StripBuilder};
 use native_dialog::FileDialog;
 use once_cell::sync::Lazy;
 use path_absolutize::Absolutize;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::HashMap,
-    path::{Path, PathBuf},
-    sync::Arc,
-    time::Instant,
-};
-use ulid::Ulid;
+use std::{collections::HashMap, path::Path, time::Instant};
 use watch::WatchReceiver;
 
 use tracing as trc;
 
 mod components;
 mod keyboard_shortcuts;
+mod project_state;
 mod tabs;
 mod util;
 
@@ -31,7 +25,8 @@ use crate::{cli::GuiArgs, project::Project};
 
 use self::{
     components::send_info_notification,
-    util::{load_and_watch_image, pick_file, FileFilter},
+    project_state::{LoadedProject, ProjectState},
+    util::{pick_file, FileFilter},
 };
 
 /// Run the GUI
@@ -109,87 +104,6 @@ pub struct RootState {
 
     /// Start time of the app, which can be used for calculating elapsed time for [`Undoer`]s
     start: Instant,
-}
-
-#[derive(Clone)]
-struct LoadedProject {
-    data: Project,
-    path: PathBuf,
-}
-
-pub type SourceTexture = Arc<RetainedImage>;
-
-#[derive(Clone)]
-pub enum SourceTextureStatus {
-    Loading,
-    Error(String),
-    Found(SourceTexture),
-}
-
-pub struct SourceImage {
-    path: PathBuf,
-    texture: WatchReceiver<SourceTextureStatus>,
-}
-
-pub struct ProjectState {
-    pub data: Project,
-    pub path: PathBuf,
-    pub undoer: Undoer<Project>,
-    pub source_images: IndexMap<Ulid, SourceImage>,
-}
-
-impl ProjectState {
-    pub fn add_source(&mut self, path: PathBuf) {
-        let id = Ulid::new();
-        let absolute_path = path.absolutize().unwrap().to_path_buf();
-        let relative_path = pathdiff::diff_paths(absolute_path, &self.path.absolutize().unwrap())
-            .expect("Same filesystem");
-        self.data.sources.insert(id.clone(), relative_path.clone());
-        self.source_images.insert(
-            id,
-            SourceImage {
-                texture: load_and_watch_image(&path),
-                path: relative_path,
-            },
-        );
-    }
-
-    fn update_source(&mut self, id: Ulid, path: PathBuf) {
-        let absolute_path = path.absolutize().unwrap().to_path_buf();
-        let relative_path = pathdiff::diff_paths(absolute_path, &self.path.absolutize().unwrap())
-            .expect("Same filesystem");
-        *self.data.sources.get_mut(&id).expect("missing source") = relative_path.clone();
-        *self.source_images.get_mut(&id).expect("missing source") = SourceImage {
-            texture: load_and_watch_image(&path),
-            path: relative_path,
-        }
-    }
-
-    /// Reloads all the source images from the current project source list
-    pub fn reload_source_images(&mut self) {
-        self.source_images = self
-            .data
-            .sources
-            .iter()
-            .map(|(id, path)| {
-                (
-                    id.clone(),
-                    SourceImage {
-                        texture: load_and_watch_image(
-                            &self
-                                .path
-                                .absolutize()
-                                .unwrap()
-                                .join(&path)
-                                .absolutize()
-                                .expect("Absoluteize"),
-                        ),
-                        path: path.clone(),
-                    },
-                )
-            })
-            .collect();
-    }
 }
 
 impl Default for RootState {
@@ -359,7 +273,10 @@ impl eframe::App for NesimgGui {
                         .get(&MainGuiAction::Quit)
                         .map_or(String::new(), |x| format!("\t{}", x));
 
-                    if ui.button(format!("➕ New Project{}", new_shortcut)).clicked() {
+                    if ui
+                        .button(format!("➕ New Project{}", new_shortcut))
+                        .clicked()
+                    {
                         MainGuiAction::NewProject.perform(self, ctx, frame);
                         ui.close_menu();
                     }

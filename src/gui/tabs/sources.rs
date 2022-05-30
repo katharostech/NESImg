@@ -5,7 +5,7 @@ use egui_extras::{Size, TableBuilder};
 use ulid::Ulid;
 use watch::WatchReceiver;
 
-use crate::gui::{ProjectState, SourceTextureStatus};
+use crate::gui::{project_state::SourceTextureStatus, ProjectState};
 
 use super::NesimgGuiTab;
 
