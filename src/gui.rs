@@ -5,6 +5,7 @@ use egui_extras::{RetainedImage, Size, StripBuilder};
 use indexmap::IndexMap;
 use native_dialog::FileDialog;
 use once_cell::sync::Lazy;
+use path_absolutize::Absolutize;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::HashMap,
@@ -133,12 +134,15 @@ pub struct ProjectState {
 impl ProjectState {
     pub fn add_source(&mut self, ctx: &egui::Context, path: PathBuf) {
         let id = Ulid::new();
-        self.data.sources.insert(id.clone(), path.clone());
+        let absolute_path = path.absolutize().expect("Absolutize").to_path_buf();
+        let relative_path =
+            pathdiff::diff_paths(absolute_path, &self.path).expect("Same filesystem");
+        self.data.sources.insert(id.clone(), relative_path.clone());
         self.source_images.insert(
             id,
             SourceImage {
                 texture: load_and_watch_image(ctx, &path),
-                path,
+                path: relative_path,
             },
         );
     }
@@ -153,7 +157,16 @@ impl ProjectState {
                 (
                     id.clone(),
                     SourceImage {
-                        texture: load_and_watch_image(ctx, &path),
+                        texture: load_and_watch_image(
+                            ctx,
+                            &dbg!(self
+                                .path
+                                .absolutize()
+                                .expect("Absolutize")
+                                .join(&path)
+                                .absolutize()
+                                .expect("Absoluteize")),
+                        ),
                         path: path.clone(),
                     },
                 )
@@ -516,7 +529,10 @@ fn new_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
 
                 serde_json::to_writer_pretty(file, &data).context("Serialize project to JSON")?;
 
-                sender.send(Some(LoadedProject { data, path }));
+                sender.send(Some(LoadedProject {
+                    data,
+                    path: path.absolutize().expect("Absolutize").to_path_buf(),
+                }));
             }
 
             Ok(())
