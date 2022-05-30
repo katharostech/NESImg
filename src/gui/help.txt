@@ -1,5 +1,4 @@
-ℹ Getting Started
-=================
+# ℹ Getting Started
 
 Welcome to NESImg!
 

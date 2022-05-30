@@ -132,8 +132,8 @@ impl NesimgGuiTab for SourcesTab {
         });
     }
 
-    fn show_help(&mut self, ui: &mut egui::Ui) {
-        ui.label(include_str!("./sources_help.txt"));
+    fn help_text(&self) -> &'static str {
+        include_str!("./sources_help.txt")
     }
 }
 

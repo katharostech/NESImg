@@ -18,6 +18,7 @@ crate-type = ["cdylib", "rlib"]
 egui = { git = "https://github.com/zicklag/egui.git", rev = "7aee50b" }
 eframe = { git = "https://github.com/zicklag/egui.git", rev = "7aee50b", features = ["wgpu", "persistence"], default-features = false }
 egui_extras = { git = "https://github.com/zicklag/egui.git", rev = "7aee50b", features = ["image"] }
+egui_demo_lib = { git = "https://github.com/zicklag/egui.git", rev = "7aee50b", features = ["serde"] }
 serde = { version = "1", features = ["derive"] } 
 
 native-dialog = { version = "0.6.3", features = ["windows_dpi_awareness", "windows_visual_styles"] }
@@ -41,7 +42,6 @@ indexmap = { version = "1.8.2", features = ["serde"] }
 ulid = { version = "0.5.0", features = ["serde"] }
 path-absolutize = "3.0.13"
 pathdiff = "0.2.1"
-egui_demo_lib = "0.18.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -3,7 +3,9 @@ use super::ProjectState;
 pub trait NesimgGuiTab {
     fn show(&mut self, project: &mut ProjectState, ctx: &egui::Context, frame: &mut eframe::Frame);
     #[allow(unused_variables)]
-    fn show_help(&mut self, ui: &mut egui::Ui) {}
+    fn help_text(&self) -> &'static str {
+        ""
+    }
 }
 
 pub mod maps;

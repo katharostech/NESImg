@@ -437,24 +437,36 @@ impl eframe::App for NesimgGui {
         if self.show_help {
             egui::TopBottomPanel::bottom("help_panel")
                 .resizable(true)
-                .default_height(150.0)
+                .default_height(175.0)
                 .show(ctx, |ui| {
-                    ui.centered_and_justified(|ui| {
-                        egui::ScrollArea::new([false, true]).show(ui, |ui| {
-                            ui.add_space(7.0);
-
-                            if self.state.project.is_some() {
-                                for (name, tab) in &mut self.tabs {
-                                    if name == &self.current_tab {
-                                        tab.show_help(ui);
-                                    }
-                                }
-                            } else {
-                                ui.label(include_str!("./gui/help.txt"));
+                    let help_text = if self.state.project.is_some() {
+                        let mut help_text = "";
+                        for (name, tab) in &mut self.tabs {
+                            if name == &self.current_tab {
+                                help_text = tab.help_text();
+                                break;
                             }
+                        }
+                        help_text
+                    } else {
+                        include_str!("./gui/help.txt")
+                    };
 
-                            ui.add_space(7.0);
-                        });
+                    egui::ScrollArea::vertical().show(ui, |ui| {
+                        ui.set_height(ui.available_height());
+                        ui.add_space(7.0);
+
+                        ui.set_width(ui.available_width());
+
+                        ui.style_mut()
+                            .text_styles
+                            .get_mut(&egui::TextStyle::Heading)
+                            .unwrap()
+                            .size = 15.0;
+
+                        egui_demo_lib::easy_mark::easy_mark(ui, help_text);
+
+                        ui.add_space(7.0);
                     });
                 });
         }

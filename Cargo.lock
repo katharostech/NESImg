@@ -606,7 +606,7 @@ source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5
 dependencies = [
  "bytemuck",
  "directories-next",
- "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "egui",
  "egui-wgpu",
  "egui-winit",
  "glutin",
@@ -625,21 +625,10 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eb095a8b9feb9b7ff8f00b6776dffcef059538a3f4a91238e03c900e9c9ad9a2"
-dependencies = [
- "ahash",
- "epaint 0.18.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "nohash-hasher",
-]
-
-[[package]]
-name = "egui"
-version = "0.18.1"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
  "ahash",
- "epaint 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "epaint",
  "nohash-hasher",
  "ron",
  "serde",
@@ -652,7 +641,7 @@ version = "0.18.0"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
  "bytemuck",
- "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "egui",
  "pollster",
  "tracing",
  "type-map",
@@ -666,7 +655,7 @@ version = "0.18.0"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
  "arboard",
- "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "egui",
  "instant",
  "serde",
  "smithay-clipboard",
@@ -678,12 +667,12 @@ dependencies = [
 [[package]]
 name = "egui_demo_lib"
 version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c90fd27c1b563117b50ffde51587f364c517ff89a80e11bb96edacf43a38d4cb"
+source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
- "egui 0.18.1 (registry+https://github.com/rust-lang/crates.io-index)",
- "egui_extras 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "egui",
+ "egui_extras",
  "enum-map",
+ "serde",
  "tracing",
  "unicode_names2",
 ]
@@ -691,18 +680,9 @@ dependencies = [
 [[package]]
 name = "egui_extras"
 version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "877bfcce06463cdbcfd7f4efd57608b1384d6d9ae03b33e503fbba1d1a899a52"
-dependencies = [
- "egui 0.18.1 (registry+https://github.com/rust-lang/crates.io-index)",
-]
-
-[[package]]
-name = "egui_extras"
-version = "0.18.0"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
- "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "egui",
  "image 0.24.2",
 ]
 
@@ -711,12 +691,6 @@ name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
-
-[[package]]
-name = "emath"
-version = "0.18.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c223f58c7e38abe1770f367b969f1b3fbd4704b67666bcb65dbb1adb0980ba72"
 
 [[package]]
 name = "emath"
@@ -751,27 +725,13 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.18.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0c29567088888e8ac3e8f61bbb2ddc820207ebb8d69eefde5bcefa06d65e4e89"
-dependencies = [
- "ab_glyph",
- "ahash",
- "atomic_refcell",
- "emath 0.18.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "nohash-hasher",
- "parking_lot 0.12.0",
-]
-
-[[package]]
-name = "epaint"
-version = "0.18.1"
 source = "git+https://github.com/zicklag/egui.git?rev=7aee50b#7aee50b69accdebec5e8920c66d9562d580a972f"
 dependencies = [
  "ab_glyph",
  "ahash",
  "atomic_refcell",
  "bytemuck",
- "emath 0.18.0 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "emath",
  "nohash-hasher",
  "parking_lot 0.12.0",
  "serde",
@@ -1642,9 +1602,9 @@ dependencies = [
  "console_error_panic_hook",
  "crevice",
  "eframe",
- "egui 0.18.1 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "egui",
  "egui_demo_lib",
- "egui_extras 0.18.0 (git+https://github.com/zicklag/egui.git?rev=7aee50b)",
+ "egui_extras",
  "flume",
  "glow",
  "image 0.24.2",
