@@ -8,6 +8,7 @@ use ulid::Ulid;
 
 /// The actual project structure, as serialized to JSON for the project file
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields, default)]
 pub struct Project {
     pub sources: IndexMap<Ulid, PathBuf>,
 }

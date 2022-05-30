@@ -17,18 +17,26 @@ pub struct LoadedProject {
     pub path: PathBuf,
 }
 
-pub type SourceTexture = Arc<RetainedImage>;
+#[derive(Clone)]
+pub struct SourceImageData {
+    /// The image texture for the source, which can be displayed by Egui and contains the image size
+    /// info
+    pub texture: Arc<RetainedImage>,
+    /// The vector of pixels in the image, but instead of a color, the pixels contain the color
+    /// index, 0-4
+    pub indexes: Vec<u8>,
+}
 
 #[derive(Clone)]
-pub enum SourceTextureStatus {
+pub enum SourceImageStatus {
     Loading,
     Error(String),
-    Found(SourceTexture),
+    Found(SourceImageData),
 }
 
 pub struct SourceImage {
     pub path: PathBuf,
-    pub texture: WatchReceiver<SourceTextureStatus>,
+    pub data: WatchReceiver<SourceImageStatus>,
 }
 
 pub struct ProjectState {
@@ -48,7 +56,7 @@ impl ProjectState {
         self.source_images.insert(
             id,
             SourceImage {
-                texture: load_and_watch_image(&path),
+                data: load_and_watch_image(&path),
                 path: relative_path,
             },
         );
@@ -60,7 +68,7 @@ impl ProjectState {
             .expect("Same filesystem");
         *self.data.sources.get_mut(&id).expect("missing source") = relative_path.clone();
         *self.source_images.get_mut(&id).expect("missing source") = SourceImage {
-            texture: load_and_watch_image(&path),
+            data: load_and_watch_image(&path),
             path: relative_path,
         }
     }
@@ -75,7 +83,7 @@ impl ProjectState {
                 (
                     id.clone(),
                     SourceImage {
-                        texture: load_and_watch_image(
+                        data: load_and_watch_image(
                             &self
                                 .path
                                 .absolutize()

@@ -3,7 +3,7 @@
 This is the sources panel, where you add images that will be used to build metatiles, and maps. You can add add as many images as you want.
 
 Each image must:
-  - have exactly 4 colors ( usually these are monochrome colors from black to white )
+  - have exactly 4 colors ( these will be converted to greyscale colors in the UI )
   - be made up of 8x8 pixel tiles ( the height and width must be divisible by 8 )
 
 After you've added your sources, you have to create some Metatiles in the metatile panel.

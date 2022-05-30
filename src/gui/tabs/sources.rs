@@ -5,7 +5,7 @@ use egui_extras::{Size, TableBuilder};
 use ulid::Ulid;
 use watch::WatchReceiver;
 
-use crate::gui::{project_state::SourceTextureStatus, ProjectState};
+use crate::gui::{project_state::SourceImageStatus, ProjectState};
 
 use super::NesimgGuiTab;
 
@@ -88,6 +88,7 @@ impl NesimgGuiTab for SourcesTab {
                             body.row(ROW_HEIGHT, |mut row| {
                                 row.col(|ui| {
                                     ui.horizontal(|ui| {
+                                        ui.add_space(7.0);
                                         if ui.button("✏").on_hover_text("Edit file path").clicked()
                                         {
                                             self.update_source = (*id, browse_for_image_path());
@@ -102,28 +103,28 @@ impl NesimgGuiTab for SourcesTab {
                                         );
                                     });
                                 });
-                                row.col(|ui| match image.texture.get() {
-                                    SourceTextureStatus::Found(image) => {
-                                        let orig_size = image.size_vec2();
+                                row.col(|ui| match image.data.get() {
+                                    SourceImageStatus::Found(image) => {
+                                        let orig_size = image.texture.size_vec2();
                                         let aspect = orig_size.x / orig_size.y;
                                         let width = aspect * ROW_HEIGHT;
                                         let size = Vec2::new(width, ROW_HEIGHT);
 
-                                        ui.image(image.texture_id(ctx), size)
+                                        ui.image(image.texture.texture_id(ctx), size)
                                             .on_hover_text("Scroll to zoom")
                                             .on_hover_ui(|ui| {
                                                 self.preview_zoom +=
                                                     ui.input().scroll_delta.y * 0.01;
                                                 ui.image(
-                                                    image.texture_id(ctx),
+                                                    image.texture.texture_id(ctx),
                                                     size * self.preview_zoom,
                                                 );
                                             });
                                     }
-                                    SourceTextureStatus::Loading => {
+                                    SourceImageStatus::Loading => {
                                         ui.spinner();
                                     }
-                                    SourceTextureStatus::Error(e) => {
+                                    SourceImageStatus::Error(e) => {
                                         ui.colored_label(egui::Color32::RED, "Error ℹ")
                                             .on_hover_ui(|ui| {
                                                 ui.colored_label(egui::Color32::RED, &e);
