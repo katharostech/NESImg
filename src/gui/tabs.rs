@@ -1,9 +1,9 @@
-use crate::NesimgGui;
-
-use super::RootState;
+use super::ProjectState;
 
 pub trait NesimgGuiTab {
-    fn show(&mut self, root_state: &mut RootState, ctx: &egui::Context, frame: &mut eframe::Frame);
+    fn show(&mut self, project: &mut ProjectState, ctx: &egui::Context, frame: &mut eframe::Frame);
+    #[allow(unused_variables)]
+    fn show_help(&mut self, ui: &mut egui::Ui) {}
 }
 
 pub mod maps;

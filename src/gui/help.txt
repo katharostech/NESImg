@@ -1,0 +1,8 @@
+ℹ Getting Started
+=================
+
+Welcome to NESImg!
+
+To get started, open an existing NESImg project, or create a new one.
+
+This panel will contain help for the different sections of NESImg. If you want, you can hide this panel from the View menu.

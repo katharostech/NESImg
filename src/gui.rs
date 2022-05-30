@@ -1,10 +1,16 @@
 use anyhow::Context;
 use eframe::{egui, IconData};
 use egui::{util::undoer::Undoer, Key, Layout, Modifiers, Ui};
+use egui_extras::{RetainedImage, Size, StripBuilder};
 use native_dialog::FileDialog;
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::PathBuf, time::Instant};
+use std::{
+    collections::HashMap,
+    path::{Path, PathBuf},
+    sync::Arc,
+    time::Instant,
+};
 use watch::WatchReceiver;
 
 use tracing as trc;
@@ -18,22 +24,26 @@ use components::{send_error_notification, show_notifications};
 use keyboard_shortcuts::KeyboardShortcut;
 use tabs::NesimgGuiTab;
 
-use crate::project::Project;
+use crate::{cli::GuiArgs, project::Project};
 
-use self::util::{pick_file, FileFilter};
+use self::{
+    components::send_info_notification,
+    util::{load_and_watch_image, pick_file, FileFilter},
+};
 
 /// Run the GUI
-pub fn run_gui() {
+pub fn run_gui(args: GuiArgs) {
     let native_options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         icon_data: Some(load_icon()),
+        min_window_size: Some(egui::Vec2::new(500., 400.)),
         ..Default::default()
     };
 
     eframe::run_native(
         "NESImg",
         native_options,
-        Box::new(|cc| Box::new(NesimgGui::new(cc))),
+        Box::new(|cc| Box::new(NesimgGui::new(cc, args))),
     );
 }
 
@@ -51,6 +61,9 @@ pub struct NesimgGui {
     /// Dark mode enabled state
     dark_mode: bool,
 
+    /// Whether or not to show the help panel
+    show_help: bool,
+
     /// The root GUI state, which will be shared with and allowed to be modified by tabs
     #[serde(skip)]
     state: RootState,
@@ -60,6 +73,7 @@ impl Default for NesimgGui {
     fn default() -> Self {
         Self {
             dark_mode: true,
+            show_help: true,
             current_tab: "Sources".into(),
             tabs: vec![
                 ("Maps".into(), Box::new(tabs::maps::MapsTab::default())),
@@ -83,8 +97,11 @@ impl Default for NesimgGui {
 
 /// The root GUI state, which will be shared with and allowed to be modified by tabs
 pub struct RootState {
-    /// The loaded NESImg project, if any
-    project: Option<ProjectData>,
+    /// This contains the deserialized project and it's GUI state, such as loaded images and it's
+    /// undo-history
+    project: Option<ProjectState>,
+
+    /// This contains the plain deserialized project and the path that it was loaded from
     loaded_project: WatchReceiver<Option<LoadedProject>>,
 
     /// Start time of the app, which can be used for calculating elapsed time for [`Undoer`]s
@@ -97,9 +114,21 @@ struct LoadedProject {
     path: PathBuf,
 }
 
-struct ProjectData {
-    data: Project,
-    undoer: Undoer<Project>,
+pub type SourceImage = Arc<RetainedImage>;
+
+pub struct ProjectState {
+    pub data: Project,
+    pub path: PathBuf,
+    pub undoer: Undoer<Project>,
+    pub source_images: Vec<(PathBuf, WatchReceiver<Option<SourceImage>>)>,
+}
+
+impl ProjectState {
+    pub fn add_source(&mut self, ctx: &egui::Context, path: PathBuf) {
+        self.data.sources.push(path.clone());
+        self.source_images
+            .push((path.clone(), load_and_watch_image(ctx, &path)));
+    }
 }
 
 impl Default for RootState {
@@ -114,28 +143,37 @@ impl Default for RootState {
 
 impl NesimgGui {
     /// Called once before the first frame.
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // Scale up the UI slightly
-        cc.egui_ctx.set_pixels_per_point(1.2);
-        // Scale down the feathering slightly to compensate and keep edges from looking a little
-        // blurry
-        cc.egui_ctx.tessellation_options().feathering_size_in_pixels = 0.7;
+    pub fn new(cc: &eframe::CreationContext<'_>, args: GuiArgs) -> Self {
+        let mut gui = {
+            // Scale up the UI slightly
+            cc.egui_ctx.set_pixels_per_point(1.2);
+            // Scale down the feathering slightly to compensate and keep edges from looking a little
+            // blurry
+            cc.egui_ctx.tessellation_options().feathering_size_in_pixels = 0.7;
 
-        // Load previous app state (if any).
-        if let Some(storage) = cc.storage {
-            let gui: NesimgGui = eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            // Load previous app state (if any).
+            if let Some(storage) = cc.storage {
+                let gui: NesimgGui =
+                    eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
 
-            if gui.dark_mode {
+                if gui.dark_mode {
+                    cc.egui_ctx.set_visuals(egui::style::Visuals::dark());
+                }
+
+                gui
+            } else {
+                // Default to dark theme
                 cc.egui_ctx.set_visuals(egui::style::Visuals::dark());
+
+                Default::default()
             }
+        };
 
-            gui
-        } else {
-            // Default to dark theme
-            cc.egui_ctx.set_visuals(egui::style::Visuals::dark());
-
-            Default::default()
+        if let Some(path) = args.project {
+            gui.state.loaded_project = watch::channel(get_loaded_project(&cc.egui_ctx, &path)).1;
         }
+
+        gui
     }
 
     fn toggle_dark_mode(&mut self, ui: &mut Ui) {
@@ -170,6 +208,13 @@ impl MainGuiAction {
             MainGuiAction::Undo => {
                 if let Some(project) = &mut gui.state.project {
                     if let Some(undone) = project.undoer.undo(&project.data) {
+                        if project.data.sources != undone.sources {
+                            project.source_images = undone
+                                .sources
+                                .iter()
+                                .map(|x| (x.to_owned(), load_and_watch_image(ctx, &x)))
+                                .collect();
+                        }
                         project.data = undone.clone();
                     }
                 }
@@ -222,7 +267,18 @@ impl eframe::App for NesimgGui {
                 let mut undoer = Undoer::default();
                 undoer.feed_state(self.state.start.elapsed().as_secs_f64(), &data);
 
-                self.state.project = Some(ProjectData { data, undoer })
+                let source_images = data
+                    .sources
+                    .iter()
+                    .map(|x| (x.to_owned(), load_and_watch_image(ctx, &x)))
+                    .collect();
+
+                self.state.project = Some(ProjectState {
+                    data,
+                    path: loaded.path,
+                    undoer,
+                    source_images,
+                })
             } else {
                 self.state.project = None;
             }
@@ -287,9 +343,17 @@ impl eframe::App for NesimgGui {
                     });
                 });
 
-                ui.menu_button("UI", |ui| {
+                ui.menu_button("View", |ui| {
                     if ui.checkbox(&mut self.dark_mode, "Dark Theme").clicked() {
                         self.toggle_dark_mode(ui);
+                    }
+                    ui.checkbox(&mut self.show_help, "Show Help Panel");
+
+                    if cfg!(debug_assertions) {
+                        ui.separator();
+                        if ui.checkbox(&mut ctx.debug_on_hover(), "Debug UI").clicked() {
+                            ctx.set_debug_on_hover(!ctx.debug_on_hover());
+                        }
                     }
                 });
 
@@ -312,22 +376,69 @@ impl eframe::App for NesimgGui {
             });
         });
 
+        if self.show_help {
+            egui::TopBottomPanel::bottom("help_panel")
+                .resizable(true)
+                .default_height(150.0)
+                .show(ctx, |ui| {
+                    ui.centered_and_justified(|ui| {
+                        egui::ScrollArea::new([false, true]).show(ui, |ui| {
+                            ui.add_space(7.0);
+
+                            if self.state.project.is_some() {
+                                for (name, tab) in &mut self.tabs {
+                                    if name == &self.current_tab {
+                                        tab.show_help(ui);
+                                    }
+                                }
+                            } else {
+                                ui.label(include_str!("./gui/help.txt"));
+                            }
+
+                            ui.add_space(7.0);
+                        });
+                    });
+                });
+        }
+
         // Render the actual tab contents
-        if self.state.project.is_some() {
+        if let Some(project) = &mut self.state.project {
             for (name, tab) in &mut self.tabs {
                 if name == &self.current_tab {
-                    tab.show(&mut self.state, ctx, frame);
+                    tab.show(project, ctx, frame);
                 }
             }
         } else {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ui.centered_and_justified(|ui| {
-                    ui.set_width(ui.available_height() / 3.0);
-                    ui.set_height(ui.available_width() / 3.0);
-                    if ui.button("Open Project").clicked() {
-                        MainGuiAction::OpenProject.perform(self, ctx, frame);
-                    }
-                });
+                StripBuilder::new(ui)
+                    .sizes(Size::relative(0.3), 3)
+                    .vertical(|mut strip| {
+                        strip.cell(|_| ());
+                        strip.strip(|builder| {
+                            builder
+                                .sizes(Size::relative(0.25), 4)
+                                .horizontal(|mut strip| {
+                                    strip.cell(|_| ());
+                                    strip.cell(|ui| {
+                                        ui.centered_and_justified(|ui| {
+                                            if ui.button("New Project").clicked() {
+                                                MainGuiAction::NewProject.perform(self, ctx, frame);
+                                            }
+                                        });
+                                    });
+                                    strip.cell(|ui| {
+                                        ui.centered_and_justified(|ui| {
+                                            if ui.button("Open Project").clicked() {
+                                                MainGuiAction::OpenProject
+                                                    .perform(self, ctx, frame);
+                                            }
+                                        });
+                                    });
+                                    strip.cell(|_| ());
+                                });
+                        });
+                        strip.cell(|_| ());
+                    });
             });
         }
 
@@ -359,6 +470,7 @@ fn new_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
     std::thread::spawn(move || {
         let save_path = FileDialog::new()
             .add_filter("NESImg Project", &["nesimg"])
+            .set_filename("project.nesimg")
             .show_save_single_file()
             .expect("Show save dialog");
 
@@ -397,34 +509,36 @@ fn open_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> 
             name: "NESImg Projects",
             extensions: &["nesimg"],
         }],
-        move |path| {
-            let inner = || -> anyhow::Result<_> {
-                let file = std::fs::OpenOptions::new()
-                    .read(true)
-                    .open(path)
-                    .context("Reading file to load")?;
-                let data: Project = serde_json::from_reader(file).context("Parsing JSON file")?;
-
-                Ok(Some(LoadedProject {
-                    data,
-                    path: path.to_owned(),
-                }))
-            };
-
-            match inner() {
-                Err(e) => {
-                    send_error_notification(&ctx, e.to_string());
-                    None
-                }
-                Ok(r) => r,
-            }
-        },
+        move |path| get_loaded_project(&ctx, path),
     );
 
     Ok(())
 }
 
-fn save_project(gui: &mut NesimgGui, _ctx: &egui::Context) -> anyhow::Result<()> {
+fn get_loaded_project(ctx: &egui::Context, path: &Path) -> Option<LoadedProject> {
+    let inner = || -> anyhow::Result<_> {
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .open(path)
+            .context("Reading file to load")?;
+        let data: Project = serde_json::from_reader(file).context("Parsing JSON file")?;
+
+        Ok(Some(LoadedProject {
+            data,
+            path: path.to_owned(),
+        }))
+    };
+
+    match inner() {
+        Err(e) => {
+            send_error_notification(&ctx, e.to_string());
+            None
+        }
+        Ok(r) => r,
+    }
+}
+
+fn save_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
     let project_path = if let Some(path) = gui.state.loaded_project.get().map(|x| x.path.clone()) {
         path
     } else {
@@ -445,6 +559,8 @@ fn save_project(gui: &mut NesimgGui, _ctx: &egui::Context) -> anyhow::Result<()>
         .context("Open file to save")?;
 
     serde_json::to_writer_pretty(file, &project_data).context("Serialize project to JSON")?;
+
+    send_info_notification(ctx, "Save successful");
 
     Ok(())
 }

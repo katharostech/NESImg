@@ -1,8 +1,11 @@
 //! NESImg project format
 
+use std::path::PathBuf;
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, PartialEq, Serialize, Deserialize, Default)]
+/// The actual project structure, as serialized to JSON for the project file
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 pub struct Project {
-    sources: Vec<String>,
+    pub sources: Vec<PathBuf>,
 }

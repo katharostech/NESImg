@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use structopt::StructOpt;
 use tracing as trc;
 
@@ -8,7 +10,12 @@ use tracing as trc;
 )]
 enum Args {
     #[structopt(about = "Start the GUI interface")]
-    Gui,
+    Gui(GuiArgs),
+}
+
+#[derive(Debug, structopt::StructOpt)]
+pub struct GuiArgs {
+    pub project: Option<PathBuf>,
 }
 
 pub fn run() {
@@ -19,7 +26,7 @@ pub fn run() {
     trc::debug!(?args, "Parsed commandline arguments");
 
     match args {
-        Args::Gui => crate::gui::run_gui(),
+        Args::Gui(args) => crate::gui::run_gui(args),
     }
 }
 

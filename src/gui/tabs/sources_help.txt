@@ -1,0 +1,8 @@
+ℹ Sources Panel
+===============
+
+This is the sources panel, where you add images that will be used to build metatiles, and maps.
+
+Each source must be an image with only 4 colors, with a height and width evenly divisible by 8 pixels.
+
+The sources will be split into 8x8 pixel tiles that will be used to build your metatiles.

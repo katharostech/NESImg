@@ -107,3 +107,13 @@ pub fn send_error_notification(ctx: &egui::Context, message: String) {
     })
     .send(ctx);
 }
+
+pub fn send_info_notification(ctx: &egui::Context, message: &str) {
+    let message = message.to_owned();
+    Notification::new(move |ui| {
+        ui.label(&message);
+
+        None
+    })
+    .send(ctx);
+}
