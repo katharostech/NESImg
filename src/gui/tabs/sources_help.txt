@@ -1,7 +1,11 @@
 # ℹ Sources Panel
 
-This is the sources panel, where you add images that will be used to build metatiles, and maps.
+This is the sources panel, where you add images that will be used to build metatiles, and maps. You can add add as many images as you want.
 
-- Each source must be an image with only 4 colors, with a height and width evenly divisible by 8 pixels.
-- The sources will be split into 8x8 pixel tiles that will be used to build your metatiles.
-- Source paths are relative to the NESImg project file, so if you move the project, without moving the images, you will need to update image paths with the `Change Path` button.
+Each image must:
+  - have exactly 4 colors ( usually these are monochrome colors from black to white )
+  - be made up of 8x8 pixel tiles ( the height and width must be divisible by 8 )
+
+After you've added your sources, you have to create some Metatiles in the metatile panel.
+
+*Note:* Source paths are relative to the NESImg project file, so if you move the project, without moving the images, you will need to update image paths with the ✏ button.

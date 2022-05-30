@@ -1,0 +1,12 @@
+# ℹ Metatiles Panel
+
+This is the Metatiles editor. Here you take tiles from your source images and use them to make metatiles that we can make maps out of.
+
+First off, it's important to understand what *tiles* and *metatiles* are.
+
+- *Tile:* A tile is an 8x8 pixel square. Each tile will come from one of our source images
+- *Metatile:* A metatile is a square of 4 /tiles/ to make a total of 16x16 pixels.
+
+When building a map, you don't place tiles, you place /metatiles/.
+
+After you have defined some metatiles, you can move to the Namepages tab to group and color your metatiles.

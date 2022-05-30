@@ -5,7 +5,7 @@ use native_dialog::FileDialog;
 use notify::Watcher;
 use watch::WatchReceiver;
 
-use super::{components::send_error_notification, SourceTexture, SourceTextureStatus};
+use super::SourceTextureStatus;
 
 /// Ask the user to pick a file, and then optionally watch it for changes
 pub fn pick_file<F, R>(filters: &'static [FileFilter], load_fn: F) -> WatchReceiver<R>
@@ -69,6 +69,9 @@ pub fn load_and_watch_image(path: &Path) -> WatchReceiver<SourceTextureStatus> {
                 .expect("Watch file");
 
             watcher.watch(&path, notify::RecursiveMode::NonRecursive)?;
+
+            // TODO: Clean up file watcher once all receivers have been dropped:
+            //       https://github.com/Darksonn/watch/issues/3
 
             while let Ok(event) = watch_receiver.recv() {
                 if let notify::DebouncedEvent::Write(_) = event {

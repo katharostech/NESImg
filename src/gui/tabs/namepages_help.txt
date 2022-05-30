@@ -1,0 +1,5 @@
+# ℹ Namepages Panel
+
+This is the namepage editor. All graphics data on the NES are stored in *namepages*. There are two namepages, and usually one is used for sprites and one is used for backgrounds.
+
+In this panel we can create namepages that will be used for storing our tile data for the backgrounds on our map levels. This is also where we may define the colors that will be used for our metatiles.

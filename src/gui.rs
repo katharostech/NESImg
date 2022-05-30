@@ -416,28 +416,25 @@ impl eframe::App for NesimgGui {
                 });
 
                 // Tab list
-                let tabs = ui.with_layout(Layout::right_to_left(), |ui| {
+                ui.with_layout(Layout::right_to_left(), |ui| {
                     if self.state.project.is_none() {
                         ui.set_enabled(false);
                     }
                     ui.horizontal(|ui| {
                         for (name, _) in &self.tabs {
-                            ui.selectable_value(&mut self.current_tab, name.clone(), name);
+                            ui.selectable_value(&mut self.current_tab, name.clone(), name)
+                                .on_disabled_hover_text("Open project to edit");
                         }
                     });
                     ui.separator();
                 });
-                if self.state.project.is_none() {
-                    tabs.response
-                        .on_hover_text_at_pointer("Open project to edit");
-                }
             });
         });
 
         if self.show_help {
             egui::TopBottomPanel::bottom("help_panel")
                 .resizable(true)
-                .default_height(175.0)
+                .default_height(160.0)
                 .show(ctx, |ui| {
                     let help_text = if self.state.project.is_some() {
                         let mut help_text = "";

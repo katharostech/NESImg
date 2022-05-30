@@ -55,17 +55,24 @@ impl NesimgGuiTab for SourcesTab {
                     ui.label("No Sources");
                 });
             } else {
+                const ROW_HEIGHT: f32 = 50.0;
+
                 TableBuilder::new(ui)
                     .striped(true)
                     .cell_layout(
                         egui::Layout::left_to_right().with_cross_align(egui::Align::Center),
                     )
-                    .column(Size::remainder().at_least(60.0))
-                    .column(Size::exact(100.))
-                    .column(Size::exact(50.))
+                    .column(Size::remainder()) // Source path
+                    .column(Size::exact(ROW_HEIGHT * 2.0)) // Image
+                    .column(Size::exact(ROW_HEIGHT)) // Delete button
                     .header(20.0, |mut header| {
                         header.col(|ui| {
-                            ui.label("Source Path");
+                            ui.horizontal(|ui| {
+                                ui.label("Source Path");
+                                ui.label("ℹ").on_hover_text(
+                                    "Paths are relative to the project file's parent folder",
+                                );
+                            });
                         });
                         header.col(|ui| {
                             ui.label("Image");
@@ -78,15 +85,21 @@ impl NesimgGuiTab for SourcesTab {
                         project.source_images.retain(|id, image| {
                             let mut keep = true;
 
-                            const ROW_HEIGHT: f32 = 50.0;
-
                             body.row(ROW_HEIGHT, |mut row| {
                                 row.col(|ui| {
                                     ui.horizontal(|ui| {
-                                        ui.label(image.path.to_string_lossy().as_ref());
-                                        if ui.button("Change path").clicked() {
+                                        if ui.button("✏").on_hover_text("Edit file path").clicked()
+                                        {
                                             self.update_source = (*id, browse_for_image_path());
                                         }
+                                        ui.label(
+                                            image
+                                                .path
+                                                .to_string_lossy()
+                                                .as_ref()
+                                                .strip_prefix(".")
+                                                .unwrap(),
+                                        );
                                     });
                                 });
                                 row.col(|ui| match image.texture.get() {

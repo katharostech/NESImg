@@ -2,6 +2,8 @@
 
 Welcome to NESImg!
 
+Designing artwork for the NES is difficult, because there are so many different restrictions that must be kept in mind while editing. NESImg was designed to make the process of creating NES artwork as easy as possible by enforcing the rules that must be followed to make artwork that actually runs on the NES.
+
 To get started, open an existing NESImg project, or create a new one.
 
 This panel will contain help for the different sections of NESImg. If you want, you can hide this panel from the View menu.

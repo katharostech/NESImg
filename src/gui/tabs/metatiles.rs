@@ -8,12 +8,16 @@ pub struct MetatilesTab;
 impl NesimgGuiTab for MetatilesTab {
     fn show(
         &mut self,
-        root_state: &mut ProjectState,
+        _project: &mut ProjectState,
         ctx: &egui::Context,
-        frame: &mut eframe::Frame,
+        _frame: &mut eframe::Frame,
     ) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.label("Metatiles");
         });
+    }
+
+    fn help_text(&self) -> &'static str {
+        include_str!("./metatiles_help.txt")
     }
 }

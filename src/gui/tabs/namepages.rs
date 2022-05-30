@@ -8,12 +8,16 @@ pub struct NamepagesTab;
 impl NesimgGuiTab for NamepagesTab {
     fn show(
         &mut self,
-        root_state: &mut ProjectState,
+        _project: &mut ProjectState,
         ctx: &egui::Context,
-        frame: &mut eframe::Frame,
+        _frame: &mut eframe::Frame,
     ) {
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.label("Namepages");
         });
+    }
+
+    fn help_text(&self) -> &'static str {
+        include_str!("./namepages_help.txt")
     }
 }
