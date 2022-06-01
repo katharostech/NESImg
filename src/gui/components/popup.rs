@@ -6,7 +6,7 @@ struct State {
 }
 
 /// Like [`egui::popup_below_widget`], but pops up to the left, so that the popup doesn't go off the screen
-pub(crate) fn popup_under_widget<R>(
+pub fn popup_under_widget<R>(
     ui: &Ui,
     popup_id: Id,
     widget_response: &Response,
@@ -67,7 +67,7 @@ pub(crate) fn popup_under_widget<R>(
 /// Constrain the position of a window/area so it fits within the provided boundary.
 ///
 /// If area is `None`, will constrain to [`ctx::available_rect`].
-pub(crate) fn constrain_window_rect_to_area(
+pub fn constrain_window_rect_to_area(
     ctx: &egui::Context,
     window: Rect,
     area: Option<Rect>,

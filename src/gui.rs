@@ -34,7 +34,7 @@ pub fn run_gui(args: GuiArgs) {
     let native_options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         icon_data: Some(load_icon()),
-        min_window_size: Some(egui::Vec2::new(500., 400.)),
+        min_window_size: Some(egui::Vec2::new(970., 400.)),
         ..Default::default()
     };
 
@@ -198,7 +198,7 @@ impl MainGuiAction {
             }
         } {
             trc::error!("{}", e);
-            send_error_notification(ctx, e.to_string());
+            send_error_notification(ctx, format!("{:#}", e));
         }
     }
 }
@@ -482,7 +482,7 @@ fn new_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
         };
 
         if let Err(e) = inner() {
-            send_error_notification(&ctx, e.to_string());
+            send_error_notification(&ctx, format!("{:#}", e));
         }
     });
 
@@ -518,7 +518,7 @@ fn get_loaded_project(ctx: &egui::Context, path: &Path) -> Option<LoadedProject>
 
     match inner() {
         Err(e) => {
-            send_error_notification(&ctx, e.to_string());
+            send_error_notification(&ctx, format!("{:#}", e));
             None
         }
         Ok(r) => r,

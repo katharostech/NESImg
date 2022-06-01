@@ -15,10 +15,10 @@ crate-type = ["cdylib", "rlib"]
 
 
 [dependencies]
-egui = { git = "https://github.com/zicklag/egui.git", rev = "7aee50b" }
-eframe = { git = "https://github.com/zicklag/egui.git", rev = "7aee50b", features = ["wgpu", "persistence"], default-features = false }
-egui_extras = { git = "https://github.com/zicklag/egui.git", rev = "7aee50b", features = ["image"] }
-egui_demo_lib = { git = "https://github.com/zicklag/egui.git", rev = "7aee50b", features = ["serde"] }
+egui = { path = "../../other/egui/egui" }
+eframe = { path = "../../other/egui/eframe", features = ["wgpu", "persistence"], default-features = false }
+egui_extras = { path = "../../other/egui/egui_extras", features = ["image"] }
+egui_demo_lib = { path = "../../other/egui/egui_demo_lib", features = ["serde"] }
 serde = { version = "1", features = ["derive"] } 
 
 native-dialog = { version = "0.6.3", features = ["windows_dpi_awareness", "windows_visual_styles"] }
@@ -30,7 +30,6 @@ kmeans_colors = "0.5.0"
 rand = "0.8.5"
 arboard = "2.1.1"
 tracing = "0.1.34"
-glow = "0.11.2"
 crevice = { version = "0.10.0" }
 anyhow = "1.0.57"
 bytemuck = "1.9.1"
