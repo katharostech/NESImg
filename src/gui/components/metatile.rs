@@ -101,7 +101,7 @@ impl<'a> MetatileGui<'a> {
 struct Renderer {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
-    bind_groups: HashMap<Ulid, wgpu::BindGroup>,
+    metatile_resources: HashMap<Ulid, (wgpu::BindGroup, wgpu::Buffer)>,
     sampler: wgpu::Sampler,
     empty_tile_texture_view: wgpu::TextureView,
 }
@@ -262,7 +262,7 @@ impl Renderer {
                     empty_tile_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
                 Renderer {
-                    bind_groups: Default::default(),
+                    metatile_resources: Default::default(),
                     pipeline,
                     bind_group_layout,
                     sampler,
@@ -274,7 +274,7 @@ impl Renderer {
     fn prepare(
         &mut self,
         device: &wgpu::Device,
-        _queue: &wgpu::Queue,
+        queue: &wgpu::Queue,
         id: Ulid,
         textures: &[Option<wgpu::TextureView>; 4],
     ) {
@@ -284,13 +284,19 @@ impl Renderer {
             .map(|(x, y)| if y.is_some() { x as u32 + 1 } else { 0 })
             .collect::<Vec<_>>();
 
-        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("metatile"),
-            contents: bytemuck::cast_slice(&tiles),
-            usage: wgpu::BufferUsages::COPY_DST
-                | wgpu::BufferUsages::MAP_WRITE
-                | wgpu::BufferUsages::UNIFORM,
-        });
+        let uniform_buffer = if let Some((_, buffer)) = self.metatile_resources.remove(&id) {
+            queue.write_buffer(&buffer, 0, bytemuck::cast_slice(&tiles));
+
+            buffer
+        } else {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("metatile"),
+                contents: bytemuck::cast_slice(&tiles),
+                usage: wgpu::BufferUsages::COPY_DST
+                    | wgpu::BufferUsages::MAP_WRITE
+                    | wgpu::BufferUsages::UNIFORM,
+            })
+        };
 
         let mut entries = vec![
             wgpu::BindGroupEntry {
@@ -328,11 +334,12 @@ impl Renderer {
             entries: &entries,
         });
 
-        self.bind_groups.insert(id, bind_group);
+        self.metatile_resources
+            .insert(id, (bind_group, uniform_buffer));
     }
 
     fn paint<'rpass>(&'rpass self, rpass: &mut wgpu::RenderPass<'rpass>, id: Ulid) {
-        let bind_group = self.bind_groups.get(&id).unwrap();
+        let (bind_group, _) = self.metatile_resources.get(&id).unwrap();
         rpass.set_bind_group(0, bind_group, &[]);
         rpass.set_pipeline(&self.pipeline);
         rpass.draw(0..(2 * 3 * 4), 0..1);
