@@ -12,21 +12,15 @@ use ulid::Ulid;
 use crate::gui::project_state::{ProjectState, SourceImageStatus};
 
 pub struct MetatileGui<'a> {
-    egui_id: egui::Id,
-    metatile_id: Ulid,
+    id: Ulid,
     project: &'a mut ProjectState,
     size: Vec2,
 }
 
 impl<'a> MetatileGui<'a> {
     #[must_use = "Must call .show() to display"]
-    pub fn new(project: &'a mut ProjectState, metatile_id: Ulid, size: Vec2) -> Self {
-        Self {
-            egui_id: egui::Id::new(metatile_id),
-            metatile_id,
-            project,
-            size,
-        }
+    pub fn new(project: &'a mut ProjectState, id: Ulid, size: Vec2) -> Self {
+        Self { id, project, size }
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -44,7 +38,7 @@ impl<'a> MetatileGui<'a> {
         let painter = ui.painter_at(rect);
 
         let mut textures = Vec::with_capacity(4);
-        let metatile = if let Some(m) = self.project.data.metatiles.get(&self.metatile_id) {
+        let metatile = if let Some(m) = self.project.data.metatiles.get(&self.id) {
             m
         } else {
             return;
@@ -81,7 +75,7 @@ impl<'a> MetatileGui<'a> {
             textures.remove(0),
             textures.remove(0),
         ];
-        let id = self.egui_id;
+        let id = self.id;
 
         // Paint the image
         let image_painter = egui::PaintCallback {
@@ -107,7 +101,7 @@ impl<'a> MetatileGui<'a> {
 struct Renderer {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
-    bind_groups: HashMap<egui::Id, wgpu::BindGroup>,
+    bind_groups: HashMap<Ulid, wgpu::BindGroup>,
     sampler: wgpu::Sampler,
     empty_tile_texture_view: wgpu::TextureView,
 }
@@ -281,7 +275,7 @@ impl Renderer {
         &mut self,
         device: &wgpu::Device,
         _queue: &wgpu::Queue,
-        id: egui::Id,
+        id: Ulid,
         textures: &[Option<wgpu::TextureView>; 4],
     ) {
         let tiles = textures
@@ -337,7 +331,7 @@ impl Renderer {
         self.bind_groups.insert(id, bind_group);
     }
 
-    fn paint<'rpass>(&'rpass self, rpass: &mut wgpu::RenderPass<'rpass>, id: egui::Id) {
+    fn paint<'rpass>(&'rpass self, rpass: &mut wgpu::RenderPass<'rpass>, id: Ulid) {
         let bind_group = self.bind_groups.get(&id).unwrap();
         rpass.set_bind_group(0, bind_group, &[]);
         rpass.set_pipeline(&self.pipeline);

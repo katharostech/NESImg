@@ -183,7 +183,7 @@ impl NesimgGuiTab for MetatilesTab {
 
                     ui.horizontal(|ui| {
                         ui.set_height(ui.spacing().interact_size.y);
-                        ui.label("Metatile");
+                        ui.label("Edit Metatile");
                     });
                     ui.separator();
 

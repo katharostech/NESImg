@@ -15,10 +15,10 @@ crate-type = ["cdylib", "rlib"]
 
 
 [dependencies]
-egui = { path = "../../other/egui/egui" }
-eframe = { path = "../../other/egui/eframe", features = ["wgpu", "persistence"], default-features = false }
-egui_extras = { path = "../../other/egui/egui_extras", features = ["image"] }
-egui_demo_lib = { path = "../../other/egui/egui_demo_lib", features = ["serde"] }
+egui = { git = "https://github.com/zicklag/egui", branch = "wgpu-paint-callback-bug-fix" }
+eframe = { git = "https://github.com/zicklag/egui", branch = "wgpu-paint-callback-bug-fix", features = ["wgpu", "persistence"], default-features = false }
+egui_extras = { git = "https://github.com/zicklag/egui", branch = "wgpu-paint-callback-bug-fix", features = ["image"] }
+egui_demo_lib = { git = "https://github.com/zicklag/egui", branch = "wgpu-paint-callback-bug-fix", features = ["serde"] }
 serde = { version = "1", features = ["derive"] } 
 
 native-dialog = { version = "0.6.3", features = ["windows_dpi_awareness", "windows_visual_styles"] }
