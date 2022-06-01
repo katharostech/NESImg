@@ -358,6 +358,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "const_panic"
+version = "0.2.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b81387ce99333fe045d8256d2f4cf8ed8fdc7342f0b5fe74fbb3cc70cd91ad53"
+
+[[package]]
 name = "copyless"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -452,28 +458,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b540bd8bc810d3885c6ea91e2018302f68baba2129ab3e88f32389ee9370880d"
 dependencies = [
  "cfg-if 1.0.0",
-]
-
-[[package]]
-name = "crevice"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9d79e92f72ddc74a13872806c9d29ee81b80b83bc02ba2af63465f88466f8f68"
-dependencies = [
- "bytemuck",
- "crevice-derive",
- "mint",
-]
-
-[[package]]
-name = "crevice-derive"
-version = "0.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2320c07ceb3e491e2bd09ade90a91c29a42d9553f1bde60c945cb5c34958b26e"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -702,6 +686,38 @@ dependencies = [
 ]
 
 [[package]]
+name = "encase"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f33a42bdd49d6bd63cc10778a55d3f702254c68017a634be723063dc9bad270"
+dependencies = [
+ "const_panic",
+ "encase_derive",
+ "glam",
+ "thiserror",
+]
+
+[[package]]
+name = "encase_derive"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d46ef76e6a127b37791f8e48575fc6db50f030ee811ed19c1e381cf819ec1c57"
+dependencies = [
+ "encase_derive_impl",
+]
+
+[[package]]
+name = "encase_derive_impl"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "36232cf81f78d216f9ae0865e8f8ac562fb6a5dc8d2e3e98c00ccec0b7c6473f"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "enum-map"
 version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -900,6 +916,15 @@ dependencies = [
  "khronos_api",
  "log",
  "xml-rs",
+]
+
+[[package]]
+name = "glam"
+version = "0.20.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f43e957e744be03f5801a55472f593d43fabdebf25a4585db250f04d86b1675f"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
@@ -1395,12 +1420,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "mint"
-version = "0.5.9"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e53debba6bda7a793e5f99b8dacf19e626084f525f7829104ba9898f367d85ff"
-
-[[package]]
 name = "mio"
 version = "0.6.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1600,12 +1619,13 @@ dependencies = [
  "arboard",
  "bytemuck",
  "console_error_panic_hook",
- "crevice",
  "eframe",
  "egui",
  "egui_demo_lib",
  "egui_extras",
+ "encase",
  "flume",
+ "glam",
  "image 0.24.2",
  "indexmap",
  "kmeans_colors",

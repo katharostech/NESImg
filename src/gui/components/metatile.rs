@@ -31,13 +31,11 @@ impl<'a> MetatileGui<'a> {
     pub fn show_at(&mut self, rect: egui::Rect, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let render_state = frame.render_state.clone().expect("WGPU not enabled");
 
-        // ui.painter().rect_filled(rect, 0.0, egui::Color32::GOLD);
-
         Renderer::ensure_init(&render_state);
 
         let painter = ui.painter_at(rect);
 
-        let mut textures = Vec::with_capacity(4);
+        let mut raw_tiles = Vec::with_capacity(4);
         let metatile = if let Some(m) = self.project.data.metatiles.get(&self.id) {
             m
         } else {
@@ -45,17 +43,20 @@ impl<'a> MetatileGui<'a> {
         };
 
         for i in 0..4 {
-            let mut get_texture = || {
+            let mut get_tile = || {
                 let tile = metatile.tiles[i].as_ref()?;
                 let source_image = self.project.source_images.get_mut(&tile.source_id).unwrap();
 
-                let texture_id = if let SourceImageStatus::Found(image) = &source_image.data.get() {
-                    image.texture.texture_id(ui.ctx())
-                } else {
-                    return None;
-                };
+                let source_image_data =
+                    if let SourceImageStatus::Found(image) = source_image.data.get() {
+                        image
+                    } else {
+                        return None;
+                    };
+                let source_image_size = source_image_data.texture.size_vec2();
+                let texture_id = source_image_data.texture.texture_id(ui.ctx());
 
-                let texture = render_state
+                let texture_view = render_state
                     .egui_rpass
                     .read()
                     .textures
@@ -65,15 +66,22 @@ impl<'a> MetatileGui<'a> {
                     .as_ref()?
                     .create_view(&wgpu::TextureViewDescriptor::default());
 
-                Some(texture)
+                Some(RawTile {
+                    texture_view,
+                    uv_start: [
+                        tile.x as f32 * 8.0 / source_image_size.x,
+                        tile.y as f32 * 8.0 / source_image_size.y,
+                    ],
+                    uv_size: [8.0 / source_image_size.x, 8.0 / source_image_size.y],
+                })
             };
-            textures.push(get_texture());
+            raw_tiles.push(get_tile());
         }
-        let texture_views = [
-            textures.remove(0),
-            textures.remove(0),
-            textures.remove(0),
-            textures.remove(0),
+        let raw_tiles = [
+            raw_tiles.remove(0),
+            raw_tiles.remove(0),
+            raw_tiles.remove(0),
+            raw_tiles.remove(0),
         ];
         let id = self.id;
 
@@ -85,7 +93,7 @@ impl<'a> MetatileGui<'a> {
                     .prepare(move |device, queue, resources| {
                         let renderer: &mut Renderer = resources.get_mut().unwrap();
 
-                        renderer.prepare(device, queue, id, &texture_views);
+                        renderer.prepare(device, queue, id, &raw_tiles);
                     })
                     .paint(move |_info, rpass, resources| {
                         let renderer: &Renderer = resources.get().unwrap();
@@ -96,6 +104,12 @@ impl<'a> MetatileGui<'a> {
         };
         painter.add(image_painter);
     }
+}
+
+struct RawTile {
+    texture_view: wgpu::TextureView,
+    uv_start: [f32; 2],
+    uv_size: [f32; 2],
 }
 
 struct Renderer {
@@ -276,22 +290,61 @@ impl Renderer {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         id: Ulid,
-        textures: &[Option<wgpu::TextureView>; 4],
+        raw_tiles: &[Option<RawTile>; 4],
     ) {
-        let tiles = textures
+        #[derive(encase::ShaderType)]
+        struct UniformBufferFormat {
+            tiles: [RawTileUniform; 4],
+        }
+
+        #[derive(encase::ShaderType)]
+        struct RawTileUniform {
+            #[align(16)]
+            tex_idx: u32,
+            uv_start: glam::Vec2,
+            uv_size: glam::Vec2,
+        }
+
+        let mut uniform_tiles = raw_tiles
             .iter()
             .enumerate()
-            .map(|(x, y)| if y.is_some() { x as u32 + 1 } else { 0 })
+            .map(|(i, tile)| {
+                if let Some(tile) = tile {
+                    RawTileUniform {
+                        tex_idx: i as u32 + 1,
+                        uv_start: tile.uv_start.into(),
+                        uv_size: tile.uv_size.into(),
+                    }
+                } else {
+                    RawTileUniform {
+                        tex_idx: 0,
+                        uv_start: [0.0; 2].into(),
+                        uv_size: [0.0; 2].into(),
+                    }
+                }
+            })
             .collect::<Vec<_>>();
+        let mut uniform_buffer_temp = encase::UniformBuffer::new(Vec::new());
+        uniform_buffer_temp
+            .write(&UniformBufferFormat {
+                tiles: [
+                    uniform_tiles.remove(0),
+                    uniform_tiles.remove(0),
+                    uniform_tiles.remove(0),
+                    uniform_tiles.remove(0),
+                ],
+            })
+            .expect("Format uniform buffer");
+        let uniform_buffer_bytes = uniform_buffer_temp.into_inner();
 
         let uniform_buffer = if let Some((_, buffer)) = self.metatile_resources.remove(&id) {
-            queue.write_buffer(&buffer, 0, bytemuck::cast_slice(&tiles));
+            queue.write_buffer(&buffer, 0, &uniform_buffer_bytes);
 
             buffer
         } else {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("metatile"),
-                contents: bytemuck::cast_slice(&tiles),
+                contents: &uniform_buffer_bytes,
                 usage: wgpu::BufferUsages::COPY_DST
                     | wgpu::BufferUsages::MAP_WRITE
                     | wgpu::BufferUsages::UNIFORM,
@@ -309,7 +362,11 @@ impl Renderer {
             },
         ];
 
-        for (i, texture) in textures.iter().enumerate() {
+        for (i, texture) in raw_tiles
+            .iter()
+            .map(|x| x.as_ref().map(|x| &x.texture_view))
+            .enumerate()
+        {
             if let Some(tex) = texture {
                 entries.push(wgpu::BindGroupEntry {
                     binding: (i + 2) as u32,

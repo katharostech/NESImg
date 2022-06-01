@@ -19,7 +19,7 @@ impl Default for MetatilesTab {
         Self {
             current_source_image: Default::default(),
             current_metatile: Default::default(),
-            metatile_list_col_count: 2,
+            metatile_list_col_count: 4,
         }
     }
 }
@@ -40,7 +40,7 @@ impl NesimgGuiTab for MetatilesTab {
                 ui.horizontal(|ui| {
                     ui.label("Metatiles");
                     ui.add(
-                        egui::Slider::new(&mut self.metatile_list_col_count, 5..=1)
+                        egui::Slider::new(&mut self.metatile_list_col_count, 16..=1)
                             .show_value(false),
                     )
                     .on_hover_text("Zoom");
