@@ -85,7 +85,7 @@ dependencies = [
  "objc",
  "objc-foundation",
  "objc_id",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "thiserror",
  "winapi 0.3.9",
  "x11rb",
@@ -164,9 +164,9 @@ checksum = "0d8c1fef690941d3e7788d328517591fecc684c084084702d6ff1641e993699a"
 
 [[package]]
 name = "bumpalo"
-version = "3.9.1"
+version = "3.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a4a45a46ab1f2412e53d3a0ade76ffad2025804294569aae387231a0cd6e0899"
+checksum = "37ccbd214614c6783386c1af30caf03192f17891059cecc394b4fb119e363de3"
 
 [[package]]
 name = "bytemuck"
@@ -586,7 +586,7 @@ checksum = "9ea835d29036a4087793836fa931b08837ad5e957da9e23886b29586fb9b6650"
 [[package]]
 name = "eframe"
 version = "0.18.0"
-source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#6160a9507f3c4afe18a8b49cc4cb80a1d00bd3aa"
+source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#ba56e4df6f8e9ed99edd1222dea461347e5de76f"
 dependencies = [
  "bytemuck",
  "directories-next",
@@ -609,7 +609,7 @@ dependencies = [
 [[package]]
 name = "egui"
 version = "0.18.1"
-source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#6160a9507f3c4afe18a8b49cc4cb80a1d00bd3aa"
+source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#ba56e4df6f8e9ed99edd1222dea461347e5de76f"
 dependencies = [
  "ahash",
  "epaint",
@@ -622,7 +622,7 @@ dependencies = [
 [[package]]
 name = "egui-wgpu"
 version = "0.18.0"
-source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#6160a9507f3c4afe18a8b49cc4cb80a1d00bd3aa"
+source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#ba56e4df6f8e9ed99edd1222dea461347e5de76f"
 dependencies = [
  "bytemuck",
  "egui",
@@ -636,7 +636,7 @@ dependencies = [
 [[package]]
 name = "egui-winit"
 version = "0.18.0"
-source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#6160a9507f3c4afe18a8b49cc4cb80a1d00bd3aa"
+source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#ba56e4df6f8e9ed99edd1222dea461347e5de76f"
 dependencies = [
  "arboard",
  "egui",
@@ -651,7 +651,7 @@ dependencies = [
 [[package]]
 name = "egui_demo_lib"
 version = "0.18.0"
-source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#6160a9507f3c4afe18a8b49cc4cb80a1d00bd3aa"
+source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#ba56e4df6f8e9ed99edd1222dea461347e5de76f"
 dependencies = [
  "egui",
  "egui_extras",
@@ -664,7 +664,7 @@ dependencies = [
 [[package]]
 name = "egui_extras"
 version = "0.18.0"
-source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#6160a9507f3c4afe18a8b49cc4cb80a1d00bd3aa"
+source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#ba56e4df6f8e9ed99edd1222dea461347e5de76f"
 dependencies = [
  "egui",
  "image 0.24.2",
@@ -679,7 +679,7 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "emath"
 version = "0.18.0"
-source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#6160a9507f3c4afe18a8b49cc4cb80a1d00bd3aa"
+source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#ba56e4df6f8e9ed99edd1222dea461347e5de76f"
 dependencies = [
  "bytemuck",
  "serde",
@@ -741,7 +741,7 @@ dependencies = [
 [[package]]
 name = "epaint"
 version = "0.18.1"
-source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#6160a9507f3c4afe18a8b49cc4cb80a1d00bd3aa"
+source = "git+https://github.com/zicklag/egui?branch=wgpu-paint-callback-bug-fix#ba56e4df6f8e9ed99edd1222dea461347e5de76f"
 dependencies = [
  "ab_glyph",
  "ahash",
@@ -749,7 +749,7 @@ dependencies = [
  "bytemuck",
  "emath",
  "nohash-hasher",
- "parking_lot 0.12.0",
+ "parking_lot 0.12.1",
  "serde",
 ]
 
@@ -1412,9 +1412,9 @@ dependencies = [
 
 [[package]]
 name = "miniz_oxide"
-version = "0.5.1"
+version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2b29bd4bc3f33391105ebee3589c19197c4271e3e5a9ec9bfe8127eeff8f082"
+checksum = "6f5c75688da582b8ffc1f1799e9db273f32133c49e048f614d22ec3256773ccc"
 dependencies = [
  "adler",
 ]
@@ -1875,9 +1875,9 @@ dependencies = [
 
 [[package]]
 name = "parking_lot"
-version = "0.12.0"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "87f5ec2493a61ac0506c0f4199f99070cbe83857b0337006a30f3e6719b8ef58"
+checksum = "3742b2c103b9f06bc9fff0a37ff4912935851bee6d36f3c02bcc755bcfec228f"
 dependencies = [
  "lock_api",
  "parking_lot_core 0.9.3",
@@ -1993,7 +1993,7 @@ dependencies = [
  "bitflags",
  "crc32fast",
  "deflate 1.0.0",
- "miniz_oxide 0.5.1",
+ "miniz_oxide 0.5.3",
 ]
 
 [[package]]

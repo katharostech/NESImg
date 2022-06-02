@@ -5,7 +5,6 @@ use eframe::{
     egui_wgpu::{renderer::CallbackFn, winit::RenderState},
     wgpu::{self, util::DeviceExt},
 };
-use egui::Vec2;
 
 use ulid::Ulid;
 
@@ -14,19 +13,18 @@ use crate::gui::project_state::{ProjectState, SourceImageStatus};
 pub struct MetatileGui<'a> {
     id: Ulid,
     project: &'a mut ProjectState,
-    size: Vec2,
 }
 
 impl<'a> MetatileGui<'a> {
     #[must_use = "Must call .show() to display"]
-    pub fn new(project: &'a mut ProjectState, id: Ulid, size: Vec2) -> Self {
-        Self { id, project, size }
+    pub fn new(project: &'a mut ProjectState, id: Ulid) -> Self {
+        Self { id, project }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-        let (rect, _response) = ui.allocate_exact_size(self.size, egui::Sense::hover());
-        self.show_at(rect, ui, frame);
-    }
+    // pub fn show(&mut self, size: egui::Vec2, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+    //     let (rect, _response) = ui.allocate_exact_size(size, egui::Sense::hover());
+    //     self.show_at(rect, ui, frame);
+    // }
 
     pub fn show_at(&mut self, rect: egui::Rect, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let render_state = frame.render_state.clone().expect("WGPU not enabled");
@@ -59,8 +57,7 @@ impl<'a> MetatileGui<'a> {
                 let texture_view = render_state
                     .egui_rpass
                     .read()
-                    .textures
-                    .get(&texture_id)
+                    .get_texture(&texture_id)
                     .as_ref()?
                     .0
                     .as_ref()?
