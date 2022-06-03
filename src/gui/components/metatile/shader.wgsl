@@ -26,13 +26,16 @@ var<private> v_positions: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
     vec2<f32>(-1.0, 0.0),
 );
 
+// Notice how the uvs don't quite go to zero or one. That is to keep the sampler from overshooting
+// slightly and sampling the color from the next tile, resulting in an unslightly seam between
+// tiles.
 var<private> v_uvs: array<vec2<f32>, 6> = array<vec2<f32>, 6>(
-    vec2<f32>(0.0, 0.0),
-    vec2<f32>(1.0, 0.0),
-    vec2<f32>(0.0, 1.0),
-    vec2<f32>(1.0, 0.0),
-    vec2<f32>(1.0, 1.0),
-    vec2<f32>(0.0, 1.0),
+    vec2<f32>(0.01, 0.01),
+    vec2<f32>(0.99, 0.01),
+    vec2<f32>(0.01, 0.99),
+    vec2<f32>(0.99, 0.01),
+    vec2<f32>(0.99, 0.99),
+    vec2<f32>(0.01, 0.99),
 );
 
 [[stage(vertex)]]
