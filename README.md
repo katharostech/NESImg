@@ -31,7 +31,7 @@ NESImg will use a simple workflow:
     - Metatilesets are a collection of metatiles.
     - You select 13 colors to use for the metatileset pallet.
     - You can colorize each of your metatiles in the pallet, with NESImg making sure you follow all the color rules.
-    - NESImg will generate an NES *pattern table* and *attribute table* that can be uploaded to the NES PPU ( Picture Processing Unit ).
+    - NESImg will generate an NES *pattern table* and *attribute table* that can be uploaded to the NES CHR ROM/RAM for rendering.
     - NESImg will make sure that your metatiles are able to fit into the 128x128 pixel NES pattern table.
 4. You build **Maps** out of your Metatiles.
     - Maps can have multiple levels
