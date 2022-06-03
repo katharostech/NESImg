@@ -76,8 +76,8 @@ impl Default for NesimgGui {
             tabs: vec![
                 ("Maps".into(), Box::new(tabs::maps::MapsTab::default())),
                 (
-                    "Namepages".into(),
-                    Box::new(tabs::namepages::NamepagesTab::default()),
+                    "Metatilesets".into(),
+                    Box::new(tabs::metatilesets::MetatilesetsTab::default()),
                 ),
                 (
                     "Metatiles".into(),

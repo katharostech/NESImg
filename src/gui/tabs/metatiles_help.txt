@@ -24,4 +24,4 @@ You can right-click the metatiles in the sidebar to delete them.
 
 # Next Step
 
-After you have defined some metatiles, you can move to the Namepages tab to group and color your metatiles.
+After you have defined some metatiles, you can move to the Metatilesets tab to group and color your metatiles.

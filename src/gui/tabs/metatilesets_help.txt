@@ -1,0 +1,11 @@
+# ℹ Metatilesets Panel
+
+This is the Metatile editor, which can be used to generate pattern and attribute tables for the NES.
+
+All graphics data on the NES are stored in *Pattern Tables*. There are two pattern tables, and usually one is used for sprites and one is used for backgrounds. Additionally, to define the final colors for the tiles, there is an *Attribute Table*.
+
+In this panel we can create *Metatilesets*, which are sets of tilesets can also their colors defined. This metatileset will then be used to generate a pattern table and an attribute table that can be uploaded into the NES CHR-RAM\/ROM ( graphics memory ) to use for rendering.
+
+NESImg will make sure that you can fit all of your Metatiles into the 128x128 pixel pattern table.
+
+You can define as many metatilesets as you want ( though you can only fit so many on an actual NES ), and each metatileset can be used as a tileset when designing map levels.

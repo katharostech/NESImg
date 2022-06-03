@@ -3,9 +3,9 @@ use crate::gui::ProjectState;
 use super::NesimgGuiTab;
 
 #[derive(Default)]
-pub struct NamepagesTab;
+pub struct MetatilesetsTab;
 
-impl NesimgGuiTab for NamepagesTab {
+impl NesimgGuiTab for MetatilesetsTab {
     fn show(
         &mut self,
         _project: &mut ProjectState,
@@ -13,11 +13,11 @@ impl NesimgGuiTab for NamepagesTab {
         _frame: &mut eframe::Frame,
     ) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.label("Namepages");
+            ui.label("Metatilesets");
         });
     }
 
     fn help_text(&self) -> &'static str {
-        include_str!("./namepages_help.txt")
+        include_str!("./metatilesets_help.txt")
     }
 }

@@ -2,4 +2,4 @@
 
 Finally, we get to the map editor.
 
-Here we can create levels, and build their backgrounds out of the metatiles from our namepages. Each level may use a different namepage, allowing different parts of your map to use different colors and tiles.
+Here we can create levels, and build their backgrounds out of the metatiles from our metatilesets. Each level may use a different namepage, allowing different parts of your map to use different colors and tiles.
