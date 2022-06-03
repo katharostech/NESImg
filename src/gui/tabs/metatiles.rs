@@ -73,56 +73,107 @@ impl NesimgGuiTab for MetatilesTab {
                 let active_stroke_color = egui::Color32::GREEN;
                 let tile_rounding = 2.0;
 
-                ui.scope(|ui| {
+                ui.with_layout(Layout::bottom_up(egui::Align::LEFT), |ui| {
                     ui.set_height(ui.available_height());
-                    egui::ScrollArea::new([false, true]).show(ui, |ui| {
-                        ui.add_space(ui.spacing().item_spacing.y);
-                        ui.horizontal_wrapped(|ui| {
-                            for id in tile_ids {
-                                let tile_region_display_size = egui::Vec2::splat(
-                                    ui.available_width() / self.metatile_list_col_count as f32,
-                                ) - item_spacing;
 
-                                let (rect, mut response) = ui.allocate_exact_size(
-                                    tile_region_display_size,
-                                    egui::Sense::click(),
-                                );
-
-                                response = response.context_menu(|ui| {
-                                    ui.set_width(75.0);
-                                    if ui.button("🗑 Delete").clicked() {
-                                        project.data.metatiles.remove(&id);
-                                        ui.close_menu();
-
-                                        if self.current_metatile == Some(id) {
-                                            self.current_metatile = None;
+                    // Render the move metatile arrow buttons
+                    ui.add_space(3.0);
+                    ui.add_enabled_ui(self.current_metatile.is_some(), |ui| {
+                        ui.set_height(ui.spacing().interact_size.y);
+                        ui.columns(2, |uis| {
+                            {
+                                let ui = &mut uis[0];
+                                ui.centered_and_justified(|ui| {
+                                    if ui.button("⬅").on_hover_text("Move metatile").clicked() {
+                                        let id = self.current_metatile.unwrap();
+                                        let idx = project
+                                            .data
+                                            .metatiles
+                                            .keys()
+                                            .enumerate()
+                                            .find(|x| x.1 == &id)
+                                            .map(|x| x.0)
+                                            .unwrap();
+                                        if idx > 0 {
+                                            project.data.metatiles.swap_indices(idx, idx - 1);
                                         }
                                     }
                                 });
-
-                                if response.clicked() {
-                                    self.current_metatile = Some(id);
-                                    response.mark_changed();
-                                }
-
-                                MetatileGui::new(project, id).show_at(rect, ui, frame);
-
-                                if self.current_metatile == Some(id) {
-                                    ui.painter().rect_stroke(
-                                        rect,
-                                        tile_rounding,
-                                        (2.0, active_stroke_color),
-                                    );
-                                } else if response.hovered() {
-                                    ui.painter().rect_stroke(
-                                        rect,
-                                        tile_rounding,
-                                        (2.0, hovered_stroke_color),
-                                    );
-                                }
+                            }
+                            {
+                                let ui = &mut uis[1];
+                                ui.centered_and_justified(|ui| {
+                                    if ui.button("➡").on_hover_text("Move metatile").clicked() {
+                                        let id = self.current_metatile.unwrap();
+                                        let idx = project
+                                            .data
+                                            .metatiles
+                                            .keys()
+                                            .enumerate()
+                                            .find(|x| x.1 == &id)
+                                            .map(|x| x.0)
+                                            .unwrap();
+                                        if idx < project.data.metatiles.len() - 1 {
+                                            project.data.metatiles.swap_indices(idx, idx + 1);
+                                        }
+                                    }
+                                });
                             }
                         });
-                        ui.add_space(ui.spacing().item_spacing.y);
+                    });
+
+                    // Render the metatile list
+                    ui.with_layout(Layout::top_down(egui::Align::LEFT), |ui| {
+                        ui.set_height(ui.available_height());
+                        egui::ScrollArea::new([false, true]).show(ui, |ui| {
+                            ui.add_space(ui.spacing().item_spacing.y);
+                            ui.horizontal_wrapped(|ui| {
+                                for id in tile_ids {
+                                    let tile_region_display_size = egui::Vec2::splat(
+                                        ui.available_width() / self.metatile_list_col_count as f32,
+                                    ) - item_spacing;
+
+                                    let (rect, mut response) = ui.allocate_exact_size(
+                                        tile_region_display_size,
+                                        egui::Sense::click(),
+                                    );
+
+                                    response = response.context_menu(|ui| {
+                                        ui.set_width(75.0);
+                                        if ui.button("🗑 Delete").clicked() {
+                                            project.data.metatiles.remove(&id);
+                                            ui.close_menu();
+
+                                            if self.current_metatile == Some(id) {
+                                                self.current_metatile = None;
+                                            }
+                                        }
+                                    });
+
+                                    if response.clicked() {
+                                        self.current_metatile = Some(id);
+                                        response.mark_changed();
+                                    }
+
+                                    MetatileGui::new(project, id).show_at(rect, ui, frame);
+
+                                    if self.current_metatile == Some(id) {
+                                        ui.painter().rect_stroke(
+                                            rect,
+                                            tile_rounding,
+                                            (2.0, active_stroke_color),
+                                        );
+                                    } else if response.hovered() {
+                                        ui.painter().rect_stroke(
+                                            rect,
+                                            tile_rounding,
+                                            (2.0, hovered_stroke_color),
+                                        );
+                                    }
+                                }
+                            });
+                            ui.add_space(ui.spacing().item_spacing.y);
+                        });
                     });
                 });
             });
