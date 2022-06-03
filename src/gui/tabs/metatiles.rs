@@ -131,6 +131,7 @@ impl NesimgGuiTab for MetatilesTab {
             .default_width(800.0)
             .min_width(200.0)
             .show(ctx, |ui| {
+                ui.add_space(ui.spacing().window_margin.top);
                 ui.horizontal(|ui| {
                     ui.label("Source Image: ");
                     ComboBox::from_id_source("source_image")
