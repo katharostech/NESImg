@@ -34,8 +34,12 @@ impl NesimgGuiTab for MetatilesTab {
             }
         }
 
+        if self.current_source_image.is_none() && !project.data.sources.is_empty() {
+            self.current_source_image = Some(*project.data.sources.keys().next().unwrap());
+        }
+
         egui::SidePanel::right("metatiles_sidebar")
-            .min_width(200.0)
+            .min_width(190.0)
             .show(ctx, |ui| {
                 ui.set_width(ui.available_width());
                 ui.add_space(ui.spacing().window_margin.top);

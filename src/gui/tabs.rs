@@ -10,5 +10,5 @@ pub trait NesimgGuiTab {
 
 pub mod maps;
 pub mod metatiles;
-pub mod metatilesets; 
+pub mod metatilesets;
 pub mod sources;

@@ -6,12 +6,12 @@ use once_cell::sync::Lazy;
 // pub(crate) static CLIPBOARD: Lazy<Mutex<arboard::Clipboard>> =
 //     Lazy::new(|| Mutex::new(arboard::Clipboard::new().expect("Access clipboard")));
 
-pub(crate) const TILE_SIZE_INT: [usize; 2] = [16, 16];
-pub(crate) const TILE_SIZE: Vec2 = Vec2::new(TILE_SIZE_INT[0] as f32, TILE_SIZE_INT[1] as f32);
+pub const TILE_SIZE_INT: [usize; 2] = [16, 16];
+pub const TILE_SIZE: Vec2 = Vec2::new(TILE_SIZE_INT[0] as f32, TILE_SIZE_INT[1] as f32);
 
 // TODO: Use egui::Color32 instead of Rgb<u8>
 /// NES color pallet
-pub(crate) static NES_PALLET_RGB: Lazy<[Rgb<u8>; 64]> = Lazy::new(|| {
+pub static NES_PALLET: Lazy<[Rgb<u8>; 64]> = Lazy::new(|| {
     [
         // 00
         Rgb([128, 128, 128]),
@@ -84,10 +84,10 @@ pub(crate) static NES_PALLET_RGB: Lazy<[Rgb<u8>; 64]> = Lazy::new(|| {
     ]
 });
 
-pub(crate) static NES_PALLET_SHADER_CONST: Lazy<String> = Lazy::new(|| {
-    let color_count = NES_PALLET_RGB.len();
+pub static NES_PALLET_SHADER_CONST: Lazy<String> = Lazy::new(|| {
+    let color_count = NES_PALLET.len();
     let mut color_list = Vec::new();
-    for color in NES_PALLET_RGB.iter() {
+    for color in NES_PALLET.iter() {
         // color_list.push(format!(
         //     "vec4({}, {}, {}, 1.0)",
         //     color.red, color.blue, color.green

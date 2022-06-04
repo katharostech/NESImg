@@ -34,7 +34,7 @@ pub fn run_gui(args: GuiArgs) {
     let native_options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         icon_data: Some(load_icon()),
-        min_window_size: Some(egui::Vec2::new(970., 400.)),
+        min_window_size: Some(egui::Vec2::new(750.0, 400.0)),
         ..Default::default()
     };
 

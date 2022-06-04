@@ -1,6 +1,6 @@
 use egui::{Color32, Response, Sense, Ui, Vec2};
 
-use crate::constants::NES_PALLET_RGB;
+use crate::constants::NES_PALLET;
 
 use super::popup_under_widget;
 
@@ -10,7 +10,7 @@ const BORDER_RADIUS: f32 = 2.0;
 /// Allows you to select a color from the NES pallet
 pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
     let i = (*nes_color_index).min(63) as usize;
-    let color = NES_PALLET_RGB[i];
+    let color = NES_PALLET[i];
     let color = egui::Color32::from_rgb(color[0], color[1], color[2]);
 
     let response = color_button(ui, color);
@@ -31,7 +31,7 @@ pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
     popup_under_widget(ui, popup_id, &response, |ui| {
         ui.horizontal_wrapped(|ui| {
             ui.set_max_width(800.0);
-            for (i, color) in NES_PALLET_RGB.iter().enumerate() {
+            for (i, color) in NES_PALLET.iter().enumerate() {
                 let color = egui::Color32::from_rgb(color[0], color[1], color[2]);
                 let resp = color_button(ui, color);
 
