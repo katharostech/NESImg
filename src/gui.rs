@@ -62,6 +62,9 @@ pub struct NesimgGui {
     /// Whether or not to show the help panel
     show_help: bool,
 
+    // The UI scale
+    pixels_per_point: f32,
+
     /// The root GUI state, which will be shared with and allowed to be modified by tabs
     #[serde(skip)]
     state: RootState,
@@ -73,6 +76,7 @@ impl Default for NesimgGui {
             dark_mode: true,
             show_help: true,
             current_tab: "Sources".into(),
+            pixels_per_point: 1.2,
             tabs: vec![
                 ("Maps".into(), Box::new(tabs::maps::MapsTab::default())),
                 (
@@ -120,8 +124,6 @@ impl NesimgGui {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>, args: GuiArgs) -> Self {
         let mut gui = {
-            // Scale up the UI slightly
-            cc.egui_ctx.set_pixels_per_point(1.2);
             // Scale down the feathering slightly to compensate and keep edges from looking a little
             // blurry
             cc.egui_ctx.tessellation_options().feathering_size_in_pixels = 0.7;
@@ -143,6 +145,8 @@ impl NesimgGui {
                 Default::default()
             }
         };
+
+        cc.egui_ctx.set_pixels_per_point(gui.pixels_per_point);
 
         if let Some(path) = args.project {
             gui.state.loaded_project = watch::channel(get_loaded_project(&cc.egui_ctx, &path)).1;
@@ -257,6 +261,8 @@ impl eframe::App for NesimgGui {
         }
 
         egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
+            let default_visuals = ui.visuals().clone();
+
             ui.add_space(1.0);
             ui.horizontal(|ui| {
                 ui.menu_button("File", |ui| {
@@ -323,6 +329,21 @@ impl eframe::App for NesimgGui {
                         self.toggle_dark_mode(ui);
                     }
                     ui.checkbox(&mut self.show_help, "ℹ Show Help Panel");
+
+                    let previous_ppp = ctx.pixels_per_point();
+                    ui.horizontal(|ui| {
+                        ui.add_space(1.0);
+                        ui.spacing_mut().item_spacing = egui::Vec2::splat(3.0);
+                        ui.label("🔎 UI Scale: ");
+                        ui.style_mut().visuals = default_visuals;
+                        let resp = ui.add(
+                            egui::Slider::new(&mut self.pixels_per_point, 0.5..=2.0)
+                                .logarithmic(true),
+                        );
+                        if !resp.dragged() && previous_ppp != self.pixels_per_point {
+                            ctx.set_pixels_per_point(self.pixels_per_point);
+                        }
+                    });
 
                     if cfg!(debug_assertions) {
                         ui.separator();
