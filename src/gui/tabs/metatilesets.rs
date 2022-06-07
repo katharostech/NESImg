@@ -100,6 +100,15 @@ impl NesimgGuiTab for MetatilesetsTab {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
+                ui.add_enabled_ui(self.current_metatileset.is_some(), |ui| {
+                    if ui.button("🗑").on_hover_text("Delete Metatileset").clicked() {
+                        project
+                            .data
+                            .metatilesets
+                            .remove(&self.current_metatileset.unwrap());
+                        self.current_metatileset = None;
+                    }
+                });
                 if ui
                     .button("➕")
                     .on_hover_text("Create metatileset")
