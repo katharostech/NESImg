@@ -6,6 +6,7 @@ struct Tile {
 
 struct Metatile {
     tiles: array<Tile, 4>;
+    colors: vec4<u32>;
 };
 
 [[group(0), binding(0)]]
@@ -69,6 +70,9 @@ var texture_3: texture_2d<f32>;
 [[group(0), binding(6)]]
 var tex_sampler: sampler;
 
+// The below comment will be substituted with a local variable containing the NES color pallet
+// #NES_PALLET
+
 [[stage(fragment)]]
 fn fs_main(in: VertexOut) -> [[location(0)]] vec4<f32> {
     var out: vec4<f32>;
@@ -84,6 +88,10 @@ fn fs_main(in: VertexOut) -> [[location(0)]] vec4<f32> {
     } else if (in.tex_idx == 4u) {
         out = textureSampleLevel(texture_3, tex_sampler, in.uv, 0.0);
     }
+
+    let color_idx = u32(ceil(out.r * 3.0));
+
+    out = vec4<f32>(NES_PALLET[ metatile.colors[color_idx] ], 1.0);
 
     return out;
 }

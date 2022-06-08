@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use eframe::{
     egui,
@@ -8,17 +8,25 @@ use eframe::{
 
 use ulid::Ulid;
 
-use crate::gui::project_state::{ProjectState, SourceImageStatus};
+use crate::{
+    constants::NES_PALLET_SHADER_CONST,
+    gui::project_state::{ProjectState, SourceImageStatus},
+};
 
 pub struct MetatileGui<'a> {
     id: Ulid,
     project: &'a mut ProjectState,
+    metatileset_id: Option<Ulid>,
 }
 
 impl<'a> MetatileGui<'a> {
     #[must_use = "Must call .show() to display"]
-    pub fn new(project: &'a mut ProjectState, id: Ulid) -> Self {
-        Self { id, project }
+    pub fn new(project: &'a mut ProjectState, id: Ulid, metatileset_id: Option<Ulid>) -> Self {
+        Self {
+            id,
+            project,
+            metatileset_id,
+        }
     }
 
     // pub fn show(&mut self, size: egui::Vec2, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -82,6 +90,24 @@ impl<'a> MetatileGui<'a> {
         ];
         let id = self.id;
 
+        let metatileset = self
+            .metatileset_id
+            .map(|id| self.project.data.metatilesets.get(&id))
+            .flatten();
+
+        let colors = if let Some(metatileset) = metatileset {
+            let metatile = metatileset.tiles.iter().find(|x| x.id == self.id).unwrap();
+            let colors = metatileset.pallet.get_sub_pallets()[metatile.sub_pallet_idx as usize];
+            [
+                colors[0] as u32,
+                colors[1] as u32,
+                colors[2] as u32,
+                colors[3] as u32,
+            ]
+        } else {
+            [0x0F, 0x2D, 0x00, 0x3D]
+        };
+
         // Paint the image
         let image_painter = egui::PaintCallback {
             rect,
@@ -90,7 +116,7 @@ impl<'a> MetatileGui<'a> {
                     .prepare(move |device, queue, resources| {
                         let renderer: &mut Renderer = resources.get_mut().unwrap();
 
-                        renderer.prepare(device, queue, id, &raw_tiles);
+                        renderer.prepare(device, queue, id, &raw_tiles, colors);
                     })
                     .paint(move |_info, rpass, resources| {
                         let renderer: &Renderer = resources.get().unwrap();
@@ -131,9 +157,11 @@ impl Renderer {
             .or_insert_with(|| {
                 let shader = device.create_shader_module(&wgpu::ShaderModuleDescriptor {
                     label,
-                    source: wgpu::ShaderSource::Wgsl(Cow::Borrowed(include_str!(
-                        "./metatile/shader.wgsl"
-                    ))),
+                    source: wgpu::ShaderSource::Wgsl(
+                        include_str!("./metatile/shader.wgsl")
+                            .replace("// #NES_PALLET", &NES_PALLET_SHADER_CONST)
+                            .into(),
+                    ),
                 });
 
                 let bind_group_layout =
@@ -288,14 +316,16 @@ impl Renderer {
         queue: &wgpu::Queue,
         id: Ulid,
         raw_tiles: &[Option<RawTile>; 4],
+        colors: [u32; 4],
     ) {
         #[derive(encase::ShaderType)]
-        struct UniformBufferFormat {
-            tiles: [RawTileUniform; 4],
+        struct MetatileUniform {
+            tiles: [MetatileTileUniform; 4],
+            colors: glam::UVec4,
         }
 
         #[derive(encase::ShaderType)]
-        struct RawTileUniform {
+        struct MetatileTileUniform {
             #[align(16)]
             tex_idx: u32,
             uv_start: glam::Vec2,
@@ -307,13 +337,13 @@ impl Renderer {
             .enumerate()
             .map(|(i, tile)| {
                 if let Some(tile) = tile {
-                    RawTileUniform {
+                    MetatileTileUniform {
                         tex_idx: i as u32 + 1,
                         uv_start: tile.uv_start.into(),
                         uv_size: tile.uv_size.into(),
                     }
                 } else {
-                    RawTileUniform {
+                    MetatileTileUniform {
                         tex_idx: 0,
                         uv_start: [0.0; 2].into(),
                         uv_size: [0.0; 2].into(),
@@ -323,13 +353,14 @@ impl Renderer {
             .collect::<Vec<_>>();
         let mut uniform_buffer_temp = encase::UniformBuffer::new(Vec::new());
         uniform_buffer_temp
-            .write(&UniformBufferFormat {
+            .write(&MetatileUniform {
                 tiles: [
                     uniform_tiles.remove(0),
                     uniform_tiles.remove(0),
                     uniform_tiles.remove(0),
                     uniform_tiles.remove(0),
                 ],
+                colors: colors.into(),
             })
             .expect("Format uniform buffer");
         let uniform_buffer_bytes = uniform_buffer_temp.into_inner();

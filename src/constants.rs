@@ -1,13 +1,10 @@
-use egui::{color::linear_f32_from_gamma_u8, Vec2};
+use egui::color::linear_f32_from_gamma_u8;
 use image::Rgb;
 use once_cell::sync::Lazy;
 
 // Uncomment if we need clipboard support later
 // pub(crate) static CLIPBOARD: Lazy<Mutex<arboard::Clipboard>> =
 //     Lazy::new(|| Mutex::new(arboard::Clipboard::new().expect("Access clipboard")));
-
-pub const TILE_SIZE_INT: [usize; 2] = [16, 16];
-pub const TILE_SIZE: Vec2 = Vec2::new(TILE_SIZE_INT[0] as f32, TILE_SIZE_INT[1] as f32);
 
 // TODO: Use egui::Color32 instead of Rgb<u8>
 /// NES color pallet
@@ -88,12 +85,8 @@ pub static NES_PALLET_SHADER_CONST: Lazy<String> = Lazy::new(|| {
     let color_count = NES_PALLET.len();
     let mut color_list = Vec::new();
     for color in NES_PALLET.iter() {
-        // color_list.push(format!(
-        //     "vec4({}, {}, {}, 1.0)",
-        //     color.red, color.blue, color.green
-        // ));
         color_list.push(format!(
-            "vec3({}, {}, {})",
+            "vec3<f32>({:.7}, {:.7}, {:.7})",
             linear_f32_from_gamma_u8(color[0]),
             linear_f32_from_gamma_u8(color[1]),
             linear_f32_from_gamma_u8(color[2]),
@@ -102,7 +95,7 @@ pub static NES_PALLET_SHADER_CONST: Lazy<String> = Lazy::new(|| {
     let color_list = color_list.join(",\n");
 
     format!(
-        r#"const vec3[{color_count}] NES_PALLET = vec3[{color_count}](
+        r#"var<private> NES_PALLET: array<vec3<f32>, {color_count}> = array<vec3<f32>, {color_count}>(
             {color_list}
         );"#,
         color_list = color_list,

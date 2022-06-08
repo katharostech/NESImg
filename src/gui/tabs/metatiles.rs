@@ -159,7 +159,7 @@ impl NesimgGuiTab for MetatilesTab {
                                         response.mark_changed();
                                     }
 
-                                    MetatileGui::new(project, id).show_at(rect, ui, frame);
+                                    MetatileGui::new(project, id, None).show_at(rect, ui, frame);
 
                                     if self.current_metatile == Some(id) {
                                         ui.painter().rect_stroke(
@@ -332,7 +332,7 @@ fn metatile_editor(
     let image_rect = egui::Rect { min, max }.translate(state.pan);
 
     // Render metatile
-    MetatileGui::new(project, metatile_id).show_at(image_rect, ui, frame);
+    MetatileGui::new(project, metatile_id, None).show_at(image_rect, ui, frame);
 
     /// How wide a metatile is in tiles
     const TILES_WIDE: u8 = 2;

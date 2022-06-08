@@ -16,7 +16,7 @@ pub struct MetatilesetsTab {
     side_metatile_list_col_count: u8,
     central_metatile_list_col_count: u8,
     /// The currently selected pallet, 0-3 that will be used for painting on metatiles
-    current_pallet: u8,
+    current_subpallet_pallet: u8,
 }
 
 impl Default for MetatilesetsTab {
@@ -25,7 +25,7 @@ impl Default for MetatilesetsTab {
             current_metatileset_id: Default::default(),
             side_metatile_list_col_count: 5,
             central_metatile_list_col_count: 10,
-            current_pallet: 0,
+            current_subpallet_pallet: 0,
         }
     }
 }
@@ -254,7 +254,7 @@ impl MetatilesetsTab {
                             response.mark_changed();
                         }
 
-                        MetatileGui::new(project, id).show_at(rect, ui, frame);
+                        MetatileGui::new(project, id, None).show_at(rect, ui, frame);
 
                         if response.hovered() {
                             ui.painter().rect_stroke(
@@ -266,9 +266,10 @@ impl MetatilesetsTab {
 
                         if response.clicked() {
                             if let Some(metatileset) = self.current_metatileset(project) {
-                                metatileset
-                                    .tiles
-                                    .push(crate::project::MetatilesetTile { id, pallet: 0 });
+                                metatileset.tiles.push(crate::project::MetatilesetTile {
+                                    id,
+                                    sub_pallet_idx: 0,
+                                });
 
                                 sort_project_metatileset(
                                     project,
@@ -296,7 +297,7 @@ impl MetatilesetsTab {
         };
 
         ui.horizontal(|ui| {
-            ui.radio_value(&mut self.current_pallet, 0, "")
+            ui.radio_value(&mut self.current_subpallet_pallet, 0, "")
                 .on_hover_ui(|ui| {
                     ui.label("Select pallet");
                     ui.label("Shortcut: 1");
@@ -308,7 +309,7 @@ impl MetatilesetsTab {
             nes_color_picker(ui, &mut metatileset.pallet.colors[3]);
         });
         ui.horizontal(|ui| {
-            ui.radio_value(&mut self.current_pallet, 1, "")
+            ui.radio_value(&mut self.current_subpallet_pallet, 1, "")
                 .on_hover_ui(|ui| {
                     ui.label("Select pallet");
                     ui.label("Shortcut: 2");
@@ -319,7 +320,7 @@ impl MetatilesetsTab {
             nes_color_picker(ui, &mut metatileset.pallet.colors[6]);
         });
         ui.horizontal(|ui| {
-            ui.radio_value(&mut self.current_pallet, 2, "")
+            ui.radio_value(&mut self.current_subpallet_pallet, 2, "")
                 .on_hover_ui(|ui| {
                     ui.label("Select pallet");
                     ui.label("Shortcut: 3");
@@ -330,7 +331,7 @@ impl MetatilesetsTab {
             nes_color_picker(ui, &mut metatileset.pallet.colors[9]);
         });
         ui.horizontal(|ui| {
-            ui.radio_value(&mut self.current_pallet, 3, "")
+            ui.radio_value(&mut self.current_subpallet_pallet, 3, "")
                 .on_hover_ui(|ui| {
                     ui.label("Select pallet");
                     ui.label("Shortcut: 4");
@@ -411,7 +412,8 @@ impl MetatilesetsTab {
                             response.mark_changed();
                         }
 
-                        MetatileGui::new(project, id).show_at(rect, ui, frame);
+                        MetatileGui::new(project, id, self.current_metatileset_id)
+                            .show_at(rect, ui, frame);
 
                         if response.hovered() {
                             ui.painter().rect_stroke(
@@ -421,15 +423,29 @@ impl MetatilesetsTab {
                             );
                         }
 
-                        response.context_menu(|ui| {
-                            if ui.button("🗑 Remove").clicked() {
-                                self.current_metatileset(project)
-                                    .unwrap()
-                                    .tiles
-                                    .retain(|x| x.id != id);
-                                ui.close_menu();
-                            }
-                        });
+                        // Paint the active pallet onto the tile
+                        if response.is_pointer_button_down_on() {
+                            let tile = self
+                                .current_metatileset(project)
+                                .unwrap()
+                                .tiles
+                                .iter_mut()
+                                .find(|x| x.id == id)
+                                .unwrap();
+                            tile.sub_pallet_idx = self.current_subpallet_pallet;
+                        }
+
+                        response
+                            .context_menu(|ui| {
+                                if ui.button("🗑 Remove").clicked() {
+                                    self.current_metatileset(project)
+                                        .unwrap()
+                                        .tiles
+                                        .retain(|x| x.id != id);
+                                    ui.close_menu();
+                                }
+                            })
+                            .on_hover_cursor(egui::CursorIcon::Crosshair);
                     }
                 });
                 ui.add_space(ui.spacing().item_spacing.y);

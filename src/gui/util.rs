@@ -110,7 +110,7 @@ pub fn load_and_watch_image(path: &Path) -> WatchReceiver<SourceImageStatus> {
                 pixels,
             };
 
-            let texture = RetainedImage::from_color_image("source_image", image.clone())
+            let texture = RetainedImage::from_color_image("source_image", image)
                 .with_texture_filter(egui::TextureFilter::Nearest);
 
             Ok(SourceImageData {

@@ -50,7 +50,7 @@ impl NesimgGuiTab for SourcesTab {
 
             ui.separator();
 
-            if project.data.sources.len() == 0 {
+            if project.data.sources.is_empty() {
                 ui.vertical_centered(|ui| {
                     ui.label("No Sources");
                 });
@@ -98,7 +98,7 @@ impl NesimgGuiTab for SourcesTab {
                                                 .path
                                                 .to_string_lossy()
                                                 .as_ref()
-                                                .strip_prefix(".")
+                                                .strip_prefix('.')
                                                 .unwrap(),
                                         );
                                     });

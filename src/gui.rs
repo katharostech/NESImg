@@ -540,7 +540,7 @@ fn get_loaded_project(ctx: &egui::Context, path: &Path) -> Option<LoadedProject>
 
     match inner() {
         Err(e) => {
-            send_error_notification(&ctx, format!("{:#}", e));
+            send_error_notification(ctx, format!("{:#}", e));
             None
         }
         Ok(r) => r,
@@ -548,7 +548,7 @@ fn get_loaded_project(ctx: &egui::Context, path: &Path) -> Option<LoadedProject>
 }
 
 fn save_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
-    let project_path = if let Some(path) = gui.state.loaded_project.get().map(|x| x.path.clone()) {
+    let project_path = if let Some(path) = gui.state.loaded_project.get().map(|x| x.path) {
         path
     } else {
         return Ok(());

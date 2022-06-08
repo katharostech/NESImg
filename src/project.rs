@@ -54,7 +54,7 @@ pub struct MetatilesetTile {
     /// The id of the metatile.
     pub id: Ulid,
     /// The index in the range `0..4` of the sub-pallet to use for rendering the metatile.
-    pub pallet: u8,
+    pub sub_pallet_idx: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
