@@ -1,4 +1,5 @@
 #![warn(clippy::all, rust_2018_idioms)]
+#![allow(clippy::reversed_empty_ranges)]
 
 mod cli;
 mod constants;

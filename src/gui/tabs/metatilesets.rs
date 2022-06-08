@@ -1,4 +1,3 @@
-use serde::Deserialize;
 use ulid::Ulid;
 
 use crate::{
@@ -49,10 +48,9 @@ impl NesimgGuiTab for MetatilesetsTab {
         }
 
         let sidebar_tab_id = egui::Id::new("metatilesets_sidebar_tab");
-        let mut sidebar_tab = ctx
+        let mut sidebar_tab = *ctx
             .data()
-            .get_persisted_mut_or(sidebar_tab_id, SidebarTab::Tiles)
-            .clone();
+            .get_persisted_mut_or(sidebar_tab_id, SidebarTab::Tiles);
 
         let central_frame = egui::Frame {
             fill: ctx.style().visuals.window_fill(),
@@ -178,7 +176,7 @@ impl MetatilesetsTab {
                                 .map(|x| x.name.clone())
                                 .unwrap()
                         })
-                        .unwrap_or("Select Metatileset...".into()),
+                        .unwrap_or_else(|| "Select Metatileset...".into()),
                 )
                 .show_ui(ui, |ui| {
                     for (id, metatileset) in &project.data.metatilesets {
@@ -236,7 +234,7 @@ impl MetatilesetsTab {
                         let already_in_metatileset = self
                             .current_metatileset(project)
                             .as_ref()
-                            .map(|m| m.tiles.iter().map(|x| x.id).find(|x| *x == id).is_some())
+                            .map(|m| m.tiles.iter().map(|x| x.id).any(|x| x == id))
                             .unwrap_or(false);
 
                         if already_in_metatileset {
@@ -288,7 +286,7 @@ impl MetatilesetsTab {
         &mut self,
         project: &mut ProjectState,
         ui: &mut egui::Ui,
-        frame: &mut eframe::Frame,
+        _frame: &mut eframe::Frame,
     ) {
         let metatileset = if let Some(metatileset) = self.current_metatileset(project) {
             metatileset
@@ -345,9 +343,9 @@ impl MetatilesetsTab {
 
     fn pattern_table_sidebar(
         &mut self,
-        project: &mut ProjectState,
+        _project: &mut ProjectState,
         ui: &mut egui::Ui,
-        frame: &mut eframe::Frame,
+        _frame: &mut eframe::Frame,
     ) {
         ui.set_width(ui.available_width());
         ui.add_space(ui.spacing().window_margin.top);
@@ -368,6 +366,7 @@ impl MetatilesetsTab {
         ui.horizontal(|ui| {
             ui.set_height(ui.spacing().interact_size.y);
             ui.label("Metatileset");
+
             ui.add(
                 egui::Slider::new(&mut self.central_metatile_list_col_count, 16..=1)
                     .show_value(false),
@@ -472,7 +471,6 @@ impl MetatilesetsTab {
         project: &'b mut ProjectState,
     ) -> Option<&'b mut Metatileset> {
         self.current_metatileset_id
-            .map(|id| project.data.metatilesets.get_mut(&id))
-            .flatten()
+            .and_then(|id| project.data.metatilesets.get_mut(&id))
     }
 }

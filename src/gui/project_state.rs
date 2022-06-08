@@ -52,7 +52,7 @@ impl ProjectState {
         let absolute_path = path.absolutize().unwrap().to_path_buf();
         let relative_path = pathdiff::diff_paths(absolute_path, &self.path.absolutize().unwrap())
             .expect("Same filesystem");
-        self.data.sources.insert(id.clone(), relative_path.clone());
+        self.data.sources.insert(id, relative_path.clone());
         self.source_images.insert(
             id,
             SourceImage {
@@ -81,7 +81,7 @@ impl ProjectState {
             .iter()
             .map(|(id, path)| {
                 (
-                    id.clone(),
+                    *id,
                     SourceImage {
                         data: load_and_watch_image(
                             &self

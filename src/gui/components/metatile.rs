@@ -92,8 +92,7 @@ impl<'a> MetatileGui<'a> {
 
         let metatileset = self
             .metatileset_id
-            .map(|id| self.project.data.metatilesets.get(&id))
-            .flatten();
+            .and_then(|id| self.project.data.metatilesets.get(&id));
 
         let colors = if let Some(metatileset) = metatileset {
             let metatile = metatileset.tiles.iter().find(|x| x.id == self.id).unwrap();
@@ -385,7 +384,7 @@ impl Renderer {
                 resource: uniform_buffer.as_entire_binding(),
             },
             wgpu::BindGroupEntry {
-                binding: 1 as u32,
+                binding: 1u32,
                 resource: wgpu::BindingResource::TextureView(&self.empty_tile_texture_view),
             },
         ];
@@ -398,7 +397,7 @@ impl Renderer {
             if let Some(tex) = texture {
                 entries.push(wgpu::BindGroupEntry {
                     binding: (i + 2) as u32,
-                    resource: wgpu::BindingResource::TextureView(&tex),
+                    resource: wgpu::BindingResource::TextureView(tex),
                 });
             } else {
                 entries.push(wgpu::BindGroupEntry {

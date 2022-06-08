@@ -202,7 +202,7 @@ impl NesimgGuiTab for MetatilesTab {
                                         .to_string_lossy()
                                         .to_string()
                                 })
-                                .unwrap_or("None".to_string()),
+                                .unwrap_or_else(|| "None".to_string()),
                         )
                         .show_ui(ui, |ui| {
                             for (id, path) in project.data.sources.iter() {
@@ -226,7 +226,7 @@ impl NesimgGuiTab for MetatilesTab {
                                 ui.spinner();
                             }
                             crate::gui::project_state::SourceImageStatus::Error(e) => {
-                                ui.colored_label(Color32::RED, e.to_string());
+                                ui.colored_label(Color32::RED, e);
                             }
                             crate::gui::project_state::SourceImageStatus::Found(image) => {
                                 source_image_viewer(
@@ -463,13 +463,12 @@ fn source_image_viewer(
             let get_tile_rect_from_xy_idx = |xy_idx: egui::Vec2| -> egui::Rect {
                 let tile_image_pos =
                     egui::Pos2::new(xy_idx.x as f32 * tile_size.x, xy_idx.y as f32 * tile_size.y);
-                let tile_rect = egui::Rect {
+
+                egui::Rect {
                     min: tile_image_pos,
                     max: tile_image_pos + tile_size,
                 }
-                .translate(image_rect.min.to_vec2());
-
-                tile_rect
+                .translate(image_rect.min.to_vec2())
             };
 
             // Handle drag selecting

@@ -32,15 +32,11 @@ impl NesimgGuiTab for SourcesTab {
         ctx: &egui::Context,
         _frame: &mut eframe::Frame,
     ) {
-        if let Some(source) = self.new_source.get_if_new() {
-            if let Some(source) = source {
-                project.add_source(source);
-            }
+        if let Some(source) = self.new_source.get_if_new().flatten() {
+            project.add_source(source);
         }
-        if let Some(update) = self.update_source.1.get_if_new() {
-            if let Some(path) = update {
-                project.update_source(self.update_source.0, path);
-            }
+        if let Some(path) = self.update_source.1.get_if_new().flatten() {
+            project.update_source(self.update_source.0, path);
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
