@@ -2,7 +2,9 @@
 
 An extremely work-in-progress tool for making NES/Famicom-compatible images.
 
-![screenshot](docs/nesimg.png)
+![screenshotSources](docs/nesimgSources.png)
+![screenshotMetatiles](docs/nesimgMetatiles.png)
+![screenshotMetatilesets](docs/nesimgMetatilesets.png)
 
 When faced with the challenge of formatting artwork in a way that it can be rendered on the NES, you run into many different limitations. For instance:
 
