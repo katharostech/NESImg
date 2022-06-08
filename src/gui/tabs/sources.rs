@@ -149,6 +149,10 @@ impl NesimgGuiTab for SourcesTab {
     fn help_text(&self) -> &'static str {
         include_str!("./sources_help.txt")
     }
+
+    fn tooltip(&self) -> &'static str {
+        "Select source images"
+    }
 }
 
 fn browse_for_image_path() -> WatchReceiver<Option<PathBuf>> {

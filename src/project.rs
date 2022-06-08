@@ -52,9 +52,9 @@ pub struct Metatileset {
 #[serde(deny_unknown_fields, default)]
 pub struct MetatilesetTile {
     /// The id of the metatile.
-    id: Ulid,
+    pub id: Ulid,
     /// The index in the range `0..4` of the sub-pallet to use for rendering the metatile.
-    pallet: u8,
+    pub pallet: u8,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]

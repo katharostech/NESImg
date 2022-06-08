@@ -359,8 +359,9 @@ impl eframe::App for NesimgGui {
                         ui.set_enabled(false);
                     }
                     ui.horizontal(|ui| {
-                        for (name, _) in &self.tabs {
+                        for (name, tab) in &self.tabs {
                             ui.selectable_value(&mut self.current_tab, name.clone(), name)
+                                .on_hover_text(tab.tooltip())
                                 .on_disabled_hover_text("Open project to edit");
                         }
                     });

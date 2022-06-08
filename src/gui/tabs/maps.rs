@@ -20,4 +20,8 @@ impl NesimgGuiTab for MapsTab {
     fn help_text(&self) -> &'static str {
         include_str!("./maps_help.txt")
     }
+
+    fn tooltip(&self) -> &'static str {
+        "Create maps and levels from metatiles"
+    }
 }

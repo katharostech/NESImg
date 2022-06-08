@@ -264,6 +264,10 @@ impl NesimgGuiTab for MetatilesTab {
     fn help_text(&self) -> &'static str {
         include_str!("./metatiles_help.txt")
     }
+
+    fn tooltip(&self) -> &'static str {
+        "Create metatiles from source images"
+    }
 }
 
 #[derive(Copy, Clone)]
