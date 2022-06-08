@@ -1,7 +1,11 @@
+use serde::Deserialize;
 use ulid::Ulid;
 
 use crate::{
-    gui::{components::MetatileGui, ProjectState},
+    gui::{
+        components::{nes_color_picker, MetatileGui},
+        ProjectState,
+    },
     project::Metatileset,
 };
 
@@ -9,29 +13,30 @@ use super::NesimgGuiTab;
 
 pub struct MetatilesetsTab {
     current_metatileset_id: Option<Ulid>,
-    current_tab: Tab,
     side_metatile_list_col_count: u8,
     central_metatile_list_col_count: u8,
+    /// The currently selected pallet, 0-3 that will be used for painting on metatiles
+    current_pallet: u8,
 }
 
 impl Default for MetatilesetsTab {
     fn default() -> Self {
         Self {
             current_metatileset_id: Default::default(),
-            current_tab: Default::default(),
             side_metatile_list_col_count: 5,
             central_metatile_list_col_count: 10,
+            current_pallet: 0,
         }
     }
 }
 
-#[derive(Debug, PartialEq)]
-enum Tab {
+#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+enum SidebarTab {
     Tiles,
     Colors,
 }
 
-impl Default for Tab {
+impl Default for SidebarTab {
     fn default() -> Self {
         Self::Tiles
     }
@@ -42,6 +47,12 @@ impl NesimgGuiTab for MetatilesetsTab {
         if self.current_metatileset_id.is_none() && !project.data.metatilesets.is_empty() {
             self.current_metatileset_id = Some(*project.data.metatilesets.keys().next().unwrap());
         }
+
+        let sidebar_tab_id = egui::Id::new("metatilesets_sidebar_tab");
+        let mut sidebar_tab = ctx
+            .data()
+            .get_persisted_mut_or(sidebar_tab_id, SidebarTab::Tiles)
+            .clone();
 
         let central_frame = egui::Frame {
             fill: ctx.style().visuals.window_fill(),
@@ -72,12 +83,31 @@ impl NesimgGuiTab for MetatilesetsTab {
                     .frame(sidebar_frame)
                     .min_width(150.0)
                     .max_width(400.0)
-                    .show_inside(ui, |ui| match self.current_tab {
-                        Tab::Tiles => {
-                            self.available_metatiles_sidebar(project, ui, frame);
-                        }
-                        Tab::Colors => {
-                            self.color_pallet_sidebar(project, ui, frame);
+                    .show_inside(ui, |ui| {
+                        ui.set_width(ui.available_width());
+                        ui.add_space(ui.spacing().window_margin.top);
+                        ui.horizontal(|ui| {
+                            ui.selectable_value(
+                                &mut sidebar_tab,
+                                SidebarTab::Tiles,
+                                "Available Metatiles",
+                            );
+                            ui.selectable_value(
+                                &mut sidebar_tab,
+                                SidebarTab::Colors,
+                                "Color Pallet",
+                            );
+                        });
+
+                        ui.separator();
+
+                        match sidebar_tab {
+                            SidebarTab::Tiles => {
+                                self.available_metatiles_sidebar(project, ui, frame);
+                            }
+                            SidebarTab::Colors => {
+                                self.color_pallet_sidebar(project, ui, frame);
+                            }
                         }
                     });
 
@@ -95,6 +125,8 @@ impl NesimgGuiTab for MetatilesetsTab {
                         self.central_panel(project, ui, frame);
                     });
             });
+
+        ctx.data().insert_persisted(sidebar_tab_id, sidebar_tab);
     }
 
     fn help_text(&self) -> &'static str {
@@ -109,7 +141,7 @@ impl NesimgGuiTab for MetatilesetsTab {
 impl MetatilesetsTab {
     fn top_panel(&mut self, ui: &mut egui::Ui, project: &mut ProjectState) {
         ui.add_space(1.0);
-        ui.horizontal(|ui| {
+        ui.with_layout(egui::Layout::right_to_left(), |ui| {
             ui.add_enabled_ui(self.current_metatileset_id.is_some(), |ui| {
                 if ui.button("🗑").on_hover_text("Delete Metatileset").clicked() {
                     project
@@ -135,7 +167,6 @@ impl MetatilesetsTab {
                 self.current_metatileset_id = Some(id);
             }
 
-            ui.label("Metatileset: ");
             egui::ComboBox::from_id_source("metatileset_select")
                 .selected_text(
                     self.current_metatileset_id
@@ -158,27 +189,18 @@ impl MetatilesetsTab {
                         );
                     }
                 });
+            ui.label("Metatileset: ");
 
-            ui.with_layout(egui::Layout::right_to_left(), |ui| {
-                ui.selectable_value(&mut self.current_tab, Tab::Colors, "Colors")
-                    .on_hover_text("Edit colors and pallets");
-                ui.selectable_value(&mut self.current_tab, Tab::Tiles, "Tiles")
-                    .on_hover_text("Select metatiles");
-                ui.separator();
-
-                ui.with_layout(egui::Layout::left_to_right(), |ui| {
-                    ui.add_enabled_ui(self.current_metatileset_id.is_some(), |ui| {
-                        ui.horizontal(|ui| {
-                            let mut name = &mut String::new();
-                            if let Some(id) = self.current_metatileset_id {
-                                if let Some(tileset) = project.data.metatilesets.get_mut(&id) {
-                                    name = &mut tileset.name;
-                                }
-                            }
-                            ui.label("Name: ");
-                            ui.text_edit_singleline(name);
-                        });
-                    });
+            ui.add_enabled_ui(self.current_metatileset_id.is_some(), |ui| {
+                ui.horizontal(|ui| {
+                    let mut name = &mut String::new();
+                    if let Some(id) = self.current_metatileset_id {
+                        if let Some(tileset) = project.data.metatilesets.get_mut(&id) {
+                            name = &mut tileset.name;
+                        }
+                    }
+                    ui.text_edit_singleline(name);
+                    ui.label("Name: ");
                 });
             });
         });
@@ -190,14 +212,11 @@ impl MetatilesetsTab {
         ui: &mut egui::Ui,
         frame: &mut eframe::Frame,
     ) {
-        ui.set_width(ui.available_width());
-        ui.add_space(ui.spacing().window_margin.top);
         ui.horizontal(|ui| {
-            ui.label("Available Metatiles");
+            ui.label("Zoom: ");
             ui.add(
                 egui::Slider::new(&mut self.side_metatile_list_col_count, 16..=1).show_value(false),
-            )
-            .on_hover_text("Zoom");
+            );
         });
         ui.separator();
 
@@ -261,6 +280,65 @@ impl MetatilesetsTab {
                 });
                 ui.add_space(ui.spacing().item_spacing.y);
             });
+        });
+    }
+
+    fn color_pallet_sidebar(
+        &mut self,
+        project: &mut ProjectState,
+        ui: &mut egui::Ui,
+        frame: &mut eframe::Frame,
+    ) {
+        let metatileset = if let Some(metatileset) = self.current_metatileset(project) {
+            metatileset
+        } else {
+            return;
+        };
+
+        ui.horizontal(|ui| {
+            ui.radio_value(&mut self.current_pallet, 0, "")
+                .on_hover_ui(|ui| {
+                    ui.label("Select pallet");
+                    ui.label("Shortcut: 1");
+                });
+
+            nes_color_picker(ui, &mut metatileset.pallet.colors[0]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[1]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[2]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[3]);
+        });
+        ui.horizontal(|ui| {
+            ui.radio_value(&mut self.current_pallet, 1, "")
+                .on_hover_ui(|ui| {
+                    ui.label("Select pallet");
+                    ui.label("Shortcut: 2");
+                });
+            nes_color_picker(ui, &mut metatileset.pallet.colors[0]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[4]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[5]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[6]);
+        });
+        ui.horizontal(|ui| {
+            ui.radio_value(&mut self.current_pallet, 2, "")
+                .on_hover_ui(|ui| {
+                    ui.label("Select pallet");
+                    ui.label("Shortcut: 3");
+                });
+            nes_color_picker(ui, &mut metatileset.pallet.colors[0]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[7]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[8]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[9]);
+        });
+        ui.horizontal(|ui| {
+            ui.radio_value(&mut self.current_pallet, 3, "")
+                .on_hover_ui(|ui| {
+                    ui.label("Select pallet");
+                    ui.label("Shortcut: 4");
+                });
+            nes_color_picker(ui, &mut metatileset.pallet.colors[0]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[10]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[11]);
+            nes_color_picker(ui, &mut metatileset.pallet.colors[12]);
         });
     }
 
@@ -357,18 +435,6 @@ impl MetatilesetsTab {
                 ui.add_space(ui.spacing().item_spacing.y);
             });
         });
-    }
-
-    fn color_pallet_sidebar(
-        &mut self,
-        project: &mut ProjectState,
-        ui: &mut egui::Ui,
-        frame: &mut eframe::Frame,
-    ) {
-        ui.set_width(ui.available_width());
-        ui.add_space(ui.spacing().window_margin.top);
-        ui.label("Color Pallet");
-        ui.separator();
     }
 }
 
