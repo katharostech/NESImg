@@ -42,7 +42,15 @@ NESImg will use a simple workflow:
 
 ## Current Status
 
-NESImg is currently experimental and only source images and metatiles are implemented.
+NESImg is currently experimental. Currently working and non-working features:
+
+- [x] Selecting source images
+- [x] Creating metatiles from source images
+- [x] Collecting metatiles into metatilesets
+- [x] Coloring metatiles in metatilesets
+- [ ] Generating pattern tables
+- [ ] Creating map levels
+- [ ] Exporting pattern tables, attribute tables, and map levels
 
 If my time permits, I will continue working on finishing the functionality and adding a sprite editor, add the ability to place entities on the map, add an NES library for loading and rendering the map, etc.
 
