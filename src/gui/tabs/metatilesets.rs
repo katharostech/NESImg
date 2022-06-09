@@ -28,7 +28,7 @@ impl Default for MetatilesetsTab {
     }
 }
 
-#[derive(Copy, Clone, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 enum SidebarTab {
     Tiles,
     Colors,

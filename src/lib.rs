@@ -25,15 +25,15 @@ pub struct Uid<T> {
 impl<T> Clone for Uid<T> {
     fn clone(&self) -> Self {
         Self {
-            id: self.id.clone(),
-            _phantom: self._phantom.clone(),
+            id: self.id,
+            _phantom: self._phantom,
         }
     }
 }
 
-impl<T> Into<ulid::Ulid> for Uid<T> {
-    fn into(self) -> ulid::Ulid {
-        self.id
+impl<T> From<Uid<T>> for ulid::Ulid {
+    fn from(uid: Uid<T>) -> Self {
+        uid.id
     }
 }
 

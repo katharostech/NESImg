@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::Uid;
 
 /// The actual project structure, as serialized to JSON for the project file
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct Project {
     /// The source images
@@ -19,7 +19,7 @@ pub struct Project {
     pub metatilesets: IndexMap<Uid<Metatileset>, Metatileset>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct Tile {
     pub source_id: Uid<PathBuf>,
@@ -29,14 +29,14 @@ pub struct Tile {
     pub y: u16,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct Metatile {
     /// The tiles that make up the metatile
     pub tiles: [Option<Tile>; 4],
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct Metatileset {
     /// A human-readable name for reference purposes
@@ -49,7 +49,7 @@ pub struct Metatileset {
     pub tiles: IndexMap<Uid<MetatilesetTile>, MetatilesetTile>,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct MetatilesetTile {
     /// The id of the metatile.
@@ -58,7 +58,7 @@ pub struct MetatilesetTile {
     pub sub_pallet_idx: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Pallet {
     /// The 13 colors that make up the pallet.
