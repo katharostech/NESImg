@@ -4,10 +4,9 @@ use egui::util::undoer::Undoer;
 use egui_extras::RetainedImage;
 use indexmap::IndexMap;
 use path_absolutize::Absolutize;
-use ulid::Ulid;
 use watch::WatchReceiver;
 
-use crate::project::Project;
+use crate::{project::Project, Uid};
 
 use super::util::load_and_watch_image;
 
@@ -43,12 +42,12 @@ pub struct ProjectState {
     pub data: Project,
     pub path: PathBuf,
     pub undoer: Undoer<Project>,
-    pub source_images: IndexMap<Ulid, SourceImage>,
+    pub source_images: IndexMap<Uid<PathBuf>, SourceImage>,
 }
 
 impl ProjectState {
     pub fn add_source(&mut self, path: PathBuf) {
-        let id = Ulid::new();
+        let id = Uid::new();
         let absolute_path = path.absolutize().unwrap().to_path_buf();
         let relative_path = pathdiff::diff_paths(absolute_path, &self.path.absolutize().unwrap())
             .expect("Same filesystem");
@@ -62,7 +61,7 @@ impl ProjectState {
         );
     }
 
-    pub fn update_source(&mut self, id: Ulid, path: PathBuf) {
+    pub fn update_source(&mut self, id: Uid<PathBuf>, path: PathBuf) {
         let absolute_path = path.absolutize().unwrap().to_path_buf();
         let relative_path = pathdiff::diff_paths(absolute_path, &self.path.absolutize().unwrap())
             .expect("Same filesystem");

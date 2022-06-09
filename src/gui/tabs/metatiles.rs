@@ -1,17 +1,23 @@
+use std::path::PathBuf;
+
 use egui::{Color32, ComboBox, Layout};
-use ulid::Ulid;
 
 use crate::{
-    gui::{components::MetatileGui, project_state::SourceImageData, ProjectState},
+    gui::{
+        components::{MetatileGui, MetatileKind},
+        project_state::SourceImageData,
+        ProjectState,
+    },
     project::{Metatile, Tile},
+    Uid,
 };
 
 use super::NesimgGuiTab;
 
 pub struct MetatilesTab {
-    current_source_image: Option<Ulid>,
+    current_source_image: Option<Uid<PathBuf>>,
     current_source_image_tile: Option<Tile>,
-    current_metatile: Option<Ulid>,
+    current_metatile: Option<Uid<Metatile>>,
     metatile_list_col_count: u32,
 }
 
@@ -57,7 +63,7 @@ impl NesimgGuiTab for MetatilesTab {
                             .on_hover_text("Create a new metatile")
                             .clicked()
                         {
-                            let id = Ulid::new();
+                            let id = Uid::new();
                             project.data.metatiles.insert(
                                 id,
                                 Metatile {
@@ -159,7 +165,8 @@ impl NesimgGuiTab for MetatilesTab {
                                         response.mark_changed();
                                     }
 
-                                    MetatileGui::new(project, id, None).show_at(rect, ui, frame);
+                                    MetatileGui::new(project, MetatileKind::Standalone(id))
+                                        .show_at(rect, ui, frame);
 
                                     if self.current_metatile == Some(id) {
                                         ui.painter().rect_stroke(
@@ -289,7 +296,7 @@ const METATILE_SIZE: egui::Vec2 = egui::Vec2::splat(16.0);
 const TILE_SIZE: egui::Vec2 = egui::Vec2::splat(8.0);
 
 fn metatile_editor(
-    metatile_id: Ulid,
+    metatile_id: Uid<Metatile>,
     project: &mut ProjectState,
     current_source_image_tile: &Option<Tile>,
     ui: &mut egui::Ui,
@@ -332,7 +339,7 @@ fn metatile_editor(
     let image_rect = egui::Rect { min, max }.translate(state.pan);
 
     // Render metatile
-    MetatileGui::new(project, metatile_id, None).show_at(image_rect, ui, frame);
+    MetatileGui::new(project, MetatileKind::Standalone(metatile_id)).show_at(image_rect, ui, frame);
 
     /// How wide a metatile is in tiles
     const TILES_WIDE: u8 = 2;
@@ -387,7 +394,7 @@ impl Default for SourceImageViewerState {
 }
 
 fn source_image_viewer(
-    source_image_id: Ulid,
+    source_image_id: Uid<PathBuf>,
     source_image_data: &SourceImageData,
     project: &mut ProjectState,
     current_source_image_tile: &mut Option<Tile>,
@@ -561,7 +568,7 @@ fn source_image_viewer(
                             let metatile = Metatile {
                                 tiles: [Some(tile_0), Some(tile_1), Some(tile_2), Some(tile_3)],
                             };
-                            project.data.metatiles.insert(Ulid::new(), metatile);
+                            project.data.metatiles.insert(Uid::new(), metatile);
                         }
                     }
                 }

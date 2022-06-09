@@ -1,21 +1,20 @@
-use ulid::Ulid;
-
 use crate::{
     gui::{
-        components::{nes_color_picker, MetatileGui},
+        components::{nes_color_picker, MetatileGui, MetatileKind},
         ProjectState,
     },
     project::Metatileset,
+    Uid,
 };
 
 use super::NesimgGuiTab;
 
 pub struct MetatilesetsTab {
-    current_metatileset_id: Option<Ulid>,
+    current_metatileset_id: Option<Uid<Metatileset>>,
     side_metatile_list_col_count: u8,
     central_metatile_list_col_count: u8,
     /// The currently selected pallet, 0-3 that will be used for painting on metatiles
-    current_subpallet_pallet: u8,
+    current_subpallet_pallet: usize,
 }
 
 impl Default for MetatilesetsTab {
@@ -120,7 +119,7 @@ impl NesimgGuiTab for MetatilesetsTab {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::default())
                     .show_inside(ui, |ui| {
-                        self.central_panel(project, ui, frame);
+                        self.central_panel(project, &sidebar_tab, ui, frame);
                     });
             });
 
@@ -154,7 +153,7 @@ impl MetatilesetsTab {
                 .on_hover_text("Create metatileset")
                 .clicked()
             {
-                let id = Ulid::new();
+                let id = Uid::new();
                 project.data.metatilesets.insert(
                     id,
                     crate::project::Metatileset {
@@ -176,7 +175,7 @@ impl MetatilesetsTab {
                                 .map(|x| x.name.clone())
                                 .unwrap()
                         })
-                        .unwrap_or_else(|| "Select Metatileset...".into()),
+                        .unwrap_or_else(|| "No Metatilesets".into()),
                 )
                 .show_ui(ui, |ui| {
                     for (id, metatileset) in &project.data.metatilesets {
@@ -231,16 +230,6 @@ impl MetatilesetsTab {
                 ui.add_space(ui.spacing().item_spacing.y);
                 ui.horizontal_wrapped(|ui| {
                     for id in metatile_ids {
-                        let already_in_metatileset = self
-                            .current_metatileset(project)
-                            .as_ref()
-                            .map(|m| m.tiles.iter().map(|x| x.id).any(|x| x == id))
-                            .unwrap_or(false);
-
-                        if already_in_metatileset {
-                            continue;
-                        }
-
                         let tile_region_display_size = egui::Vec2::splat(
                             ui.available_width() / self.side_metatile_list_col_count as f32,
                         ) - item_spacing;
@@ -252,7 +241,8 @@ impl MetatilesetsTab {
                             response.mark_changed();
                         }
 
-                        MetatileGui::new(project, id, None).show_at(rect, ui, frame);
+                        MetatileGui::new(project, MetatileKind::Standalone(id))
+                            .show_at(rect, ui, frame);
 
                         if response.hovered() {
                             ui.painter().rect_stroke(
@@ -262,12 +252,15 @@ impl MetatilesetsTab {
                             );
                         }
 
-                        if response.clicked() {
+                        if response.double_clicked() {
                             if let Some(metatileset) = self.current_metatileset(project) {
-                                metatileset.tiles.push(crate::project::MetatilesetTile {
-                                    id,
-                                    sub_pallet_idx: 0,
-                                });
+                                metatileset.tiles.insert(
+                                    Uid::new(),
+                                    crate::project::MetatilesetTile {
+                                        metatile_id: id,
+                                        sub_pallet_idx: 0,
+                                    },
+                                );
 
                                 sort_project_metatileset(
                                     project,
@@ -275,6 +268,8 @@ impl MetatilesetsTab {
                                 );
                             }
                         }
+
+                        response.on_hover_text("Double-click to add to metatileset");
                     }
                 });
                 ui.add_space(ui.spacing().item_spacing.y);
@@ -359,6 +354,7 @@ impl MetatilesetsTab {
     fn central_panel(
         &mut self,
         project: &mut ProjectState,
+        sidebar_tab: &SidebarTab,
         ui: &mut egui::Ui,
         frame: &mut eframe::Frame,
     ) {
@@ -372,6 +368,18 @@ impl MetatilesetsTab {
                     .show_value(false),
             )
             .on_hover_text("Zoom");
+
+            ui.with_layout(egui::Layout::right_to_left(), |ui| {
+                if ui
+                    .button("⬍ Sort")
+                    .on_hover_text("Sort tiles according to their order in the Metatiles tab")
+                    .clicked()
+                {
+                    if let Some(id) = self.current_metatileset_id {
+                        sort_project_metatileset(project, id);
+                    }
+                }
+            });
         });
         ui.separator();
 
@@ -380,6 +388,7 @@ impl MetatilesetsTab {
         } else {
             return;
         };
+        let metatileset_id = self.current_metatileset_id.unwrap();
 
         if metatileset.tiles.is_empty() {
             ui.vertical_centered(|ui| {
@@ -391,7 +400,7 @@ impl MetatilesetsTab {
 
         let item_spacing = egui::Vec2::splat(ui.spacing().item_spacing.x);
         ui.spacing_mut().item_spacing = item_spacing;
-        let tile_ids = metatileset.tiles.iter().map(|x| x.id).collect::<Vec<_>>();
+        let tile_ids = metatileset.tiles.keys().cloned().collect::<Vec<_>>();
         let hovered_stroke_color = ui.visuals().widgets.hovered.fg_stroke.color;
         let tile_rounding = 2.0;
 
@@ -411,8 +420,14 @@ impl MetatilesetsTab {
                             response.mark_changed();
                         }
 
-                        MetatileGui::new(project, id, self.current_metatileset_id)
-                            .show_at(rect, ui, frame);
+                        MetatileGui::new(
+                            project,
+                            MetatileKind::Metatileset {
+                                metatileset_id,
+                                metatileset_tile_id: id,
+                            },
+                        )
+                        .show_at(rect, ui, frame);
 
                         if response.hovered() {
                             ui.painter().rect_stroke(
@@ -423,28 +438,30 @@ impl MetatilesetsTab {
                         }
 
                         // Paint the active pallet onto the tile
-                        if response.is_pointer_button_down_on() {
-                            let tile = self
-                                .current_metatileset(project)
-                                .unwrap()
-                                .tiles
-                                .iter_mut()
-                                .find(|x| x.id == id)
-                                .unwrap();
-                            tile.sub_pallet_idx = self.current_subpallet_pallet;
+                        if sidebar_tab == &SidebarTab::Colors {
+                            response = response.on_hover_cursor(egui::CursorIcon::Crosshair);
+
+                            if response.clicked() {
+                                let tile = self
+                                    .current_metatileset(project)
+                                    .unwrap()
+                                    .tiles
+                                    .get_mut(&id)
+                                    .unwrap();
+                                tile.sub_pallet_idx = self.current_subpallet_pallet;
+                            }
                         }
 
-                        response
-                            .context_menu(|ui| {
-                                if ui.button("🗑 Remove").clicked() {
-                                    self.current_metatileset(project)
-                                        .unwrap()
-                                        .tiles
-                                        .retain(|x| x.id != id);
-                                    ui.close_menu();
-                                }
-                            })
-                            .on_hover_cursor(egui::CursorIcon::Crosshair);
+                        response.context_menu(|ui| {
+                            if ui.button("🗑 Remove").clicked() {
+                                self.current_metatileset(project).unwrap().tiles.remove(&id);
+                                sort_project_metatileset(
+                                    project,
+                                    self.current_metatileset_id.unwrap(),
+                                );
+                                ui.close_menu();
+                            }
+                        });
                     }
                 });
                 ui.add_space(ui.spacing().item_spacing.y);
@@ -454,12 +471,12 @@ impl MetatilesetsTab {
 }
 
 /// Sort the metatileset based on the order the tiles are in in the corresponding sources
-fn sort_project_metatileset(project: &mut ProjectState, id: Ulid) {
+fn sort_project_metatileset(project: &mut ProjectState, id: Uid<Metatileset>) {
     let metatileset = project.data.metatilesets.get_mut(&id).unwrap();
 
-    metatileset.tiles.sort_unstable_by(|a, b| {
-        let a_idx = project.data.metatiles.get_index_of(&a.id).unwrap();
-        let b_idx = project.data.metatiles.get_index_of(&b.id).unwrap();
+    metatileset.tiles.sort_unstable_by(|_, a, _, b| {
+        let a_idx = project.data.metatiles.get_index_of(&a.metatile_id).unwrap();
+        let b_idx = project.data.metatiles.get_index_of(&b.metatile_id).unwrap();
         a_idx.cmp(&b_idx)
     });
 }

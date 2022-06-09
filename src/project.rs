@@ -4,24 +4,25 @@ use std::path::PathBuf;
 
 use indexmap::IndexMap;
 use serde::{Deserialize, Serialize};
-use ulid::Ulid;
+
+use crate::Uid;
 
 /// The actual project structure, as serialized to JSON for the project file
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct Project {
     /// The source images
-    pub sources: IndexMap<Ulid, PathBuf>,
+    pub sources: IndexMap<Uid<PathBuf>, PathBuf>,
     /// The metatiles
-    pub metatiles: IndexMap<Ulid, Metatile>,
+    pub metatiles: IndexMap<Uid<Metatile>, Metatile>,
     /// The metatilesets
-    pub metatilesets: IndexMap<Ulid, Metatileset>,
+    pub metatilesets: IndexMap<Uid<Metatileset>, Metatileset>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct Tile {
-    pub source_id: Ulid,
+    pub source_id: Uid<PathBuf>,
     /// The x tile index in the source image
     pub x: u16,
     /// The y tile index in the sorce image
@@ -45,19 +46,19 @@ pub struct Metatileset {
     pub pallet: Pallet,
 
     /// The metatiles that make up the metatileset
-    pub tiles: Vec<MetatilesetTile>,
+    pub tiles: IndexMap<Uid<MetatilesetTile>, MetatilesetTile>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct MetatilesetTile {
     /// The id of the metatile.
-    pub id: Ulid,
+    pub metatile_id: Uid<Metatile>,
     /// The index in the range `0..4` of the sub-pallet to use for rendering the metatile.
-    pub sub_pallet_idx: u8,
+    pub sub_pallet_idx: usize,
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct Pallet {
     /// The 13 colors that make up the pallet.
@@ -67,13 +68,23 @@ pub struct Pallet {
     /// actually set to.
     ///
     /// The colors are indexes into the NES color pallet: [`crate::constants::NES_PALLET`]
-    pub colors: [u8; 13],
+    pub colors: [u32; 13],
+}
+
+impl Default for Pallet {
+    fn default() -> Self {
+        Self {
+            colors: [
+                0x0f, 0x2d, 0x10, 0x30, 0x2d, 0x10, 0x30, 0x2d, 0x10, 0x30, 0x2d, 0x10, 0x30,
+            ],
+        }
+    }
 }
 
 impl Pallet {
     /// Returns a slice of 4 sub-pallets, each with four colors. This mirrors the first of the 13
     /// colors to the first color of each of the sub-pallets, just like the NES will.
-    pub fn get_sub_pallets(&self) -> [[u8; 4]; 4] {
+    pub fn get_sub_pallets(&self) -> [[u32; 4]; 4] {
         let c = self.colors;
         [
             [c[0], c[1], c[2], c[3]],

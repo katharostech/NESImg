@@ -6,27 +6,49 @@ use eframe::{
     wgpu::{self, util::DeviceExt},
 };
 
-use ulid::Ulid;
-
 use crate::{
     constants::NES_PALLET_SHADER_CONST,
     gui::project_state::{ProjectState, SourceImageStatus},
+    project::{Metatile, Metatileset, MetatilesetTile},
+    Uid,
 };
 
+#[derive(Hash)]
+pub enum MetatileKind {
+    Standalone(Uid<Metatile>),
+    Metatileset {
+        metatileset_id: Uid<Metatileset>,
+        metatileset_tile_id: Uid<MetatilesetTile>,
+    },
+}
+
+impl MetatileKind {
+    fn get_metatile<'a, 'b>(&'a self, project: &'b ProjectState) -> Option<&'b Metatile> {
+        match self {
+            MetatileKind::Standalone(metatile_id) => project.data.metatiles.get(metatile_id),
+            MetatileKind::Metatileset {
+                metatileset_id,
+                metatileset_tile_id,
+            } => project
+                .data
+                .metatilesets
+                .get(metatileset_id)
+                .and_then(|metatileset| metatileset.tiles.get(metatileset_tile_id))
+                .map(|metatileset_tile| metatileset_tile.metatile_id)
+                .and_then(|metatile_id| project.data.metatiles.get(&metatile_id)),
+        }
+    }
+}
+
 pub struct MetatileGui<'a> {
-    id: Ulid,
+    tile: MetatileKind,
     project: &'a mut ProjectState,
-    metatileset_id: Option<Ulid>,
 }
 
 impl<'a> MetatileGui<'a> {
     #[must_use = "Must call .show() to display"]
-    pub fn new(project: &'a mut ProjectState, id: Ulid, metatileset_id: Option<Ulid>) -> Self {
-        Self {
-            id,
-            project,
-            metatileset_id,
-        }
+    pub fn new(project: &'a mut ProjectState, tile: MetatileKind) -> Self {
+        Self { tile, project }
     }
 
     // pub fn show(&mut self, size: egui::Vec2, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
@@ -42,15 +64,14 @@ impl<'a> MetatileGui<'a> {
         let painter = ui.painter_at(rect);
 
         let mut raw_tiles = Vec::with_capacity(4);
-        let metatile = if let Some(m) = self.project.data.metatiles.get(&self.id) {
-            m
-        } else {
+
+        if self.tile.get_metatile(self.project).is_none() {
             return;
-        };
+        }
 
         for i in 0..4 {
             let mut get_tile = || {
-                let tile = metatile.tiles[i].as_ref()?;
+                let tile = self.tile.get_metatile(self.project).unwrap().tiles[i].clone()?;
                 let source_image = self.project.source_images.get_mut(&tile.source_id).unwrap();
 
                 let source_image_data =
@@ -88,24 +109,25 @@ impl<'a> MetatileGui<'a> {
             raw_tiles.remove(0),
             raw_tiles.remove(0),
         ];
-        let id = self.id;
 
-        let metatileset = self
-            .metatileset_id
-            .and_then(|id| self.project.data.metatilesets.get(&id));
+        let colors = match &self.tile {
+            MetatileKind::Standalone { .. } => [0x0F, 0x2D, 0x00, 0x30],
+            MetatileKind::Metatileset {
+                metatileset_id,
+                metatileset_tile_id,
+            } => {
+                let metatileset = self.project.data.metatilesets.get(metatileset_id).unwrap();
 
-        let colors = if let Some(metatileset) = metatileset {
-            let metatile = metatileset.tiles.iter().find(|x| x.id == self.id).unwrap();
-            let colors = metatileset.pallet.get_sub_pallets()[metatile.sub_pallet_idx as usize];
-            [
-                colors[0] as u32,
-                colors[1] as u32,
-                colors[2] as u32,
-                colors[3] as u32,
-            ]
-        } else {
-            [0x0F, 0x2D, 0x00, 0x3D]
+                let sub_pallet_idx = metatileset
+                    .tiles
+                    .get(metatileset_tile_id)
+                    .map(|metatileset_tile| metatileset_tile.sub_pallet_idx)
+                    .unwrap();
+                metatileset.pallet.get_sub_pallets()[sub_pallet_idx]
+            }
         };
+
+        let id = ui.id().with(&self.tile);
 
         // Paint the image
         let image_painter = egui::PaintCallback {
@@ -134,10 +156,15 @@ struct RawTile {
     uv_size: [f32; 2],
 }
 
+struct MetatileResources {
+    bind_group: wgpu::BindGroup,
+    uniform_buffer: wgpu::Buffer,
+}
+
 struct Renderer {
     pipeline: wgpu::RenderPipeline,
     bind_group_layout: wgpu::BindGroupLayout,
-    metatile_resources: HashMap<Ulid, (wgpu::BindGroup, wgpu::Buffer)>,
+    metatile_resources: HashMap<egui::Id, MetatileResources>,
     sampler: wgpu::Sampler,
     empty_tile_texture_view: wgpu::TextureView,
 }
@@ -313,7 +340,7 @@ impl Renderer {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        id: Ulid,
+        id: egui::Id,
         raw_tiles: &[Option<RawTile>; 4],
         colors: [u32; 4],
     ) {
@@ -364,10 +391,10 @@ impl Renderer {
             .expect("Format uniform buffer");
         let uniform_buffer_bytes = uniform_buffer_temp.into_inner();
 
-        let uniform_buffer = if let Some((_, buffer)) = self.metatile_resources.remove(&id) {
-            queue.write_buffer(&buffer, 0, &uniform_buffer_bytes);
+        let uniform_buffer = if let Some(resources) = self.metatile_resources.remove(&id) {
+            queue.write_buffer(&resources.uniform_buffer, 0, &uniform_buffer_bytes);
 
-            buffer
+            resources.uniform_buffer
         } else {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("metatile"),
@@ -418,12 +445,17 @@ impl Renderer {
             entries: &entries,
         });
 
-        self.metatile_resources
-            .insert(id, (bind_group, uniform_buffer));
+        self.metatile_resources.insert(
+            id,
+            MetatileResources {
+                bind_group,
+                uniform_buffer,
+            },
+        );
     }
 
-    fn paint<'rpass>(&'rpass self, rpass: &mut wgpu::RenderPass<'rpass>, id: Ulid) {
-        let (bind_group, _) = self.metatile_resources.get(&id).unwrap();
+    fn paint<'rpass>(&'rpass self, rpass: &mut wgpu::RenderPass<'rpass>, id: egui::Id) {
+        let MetatileResources { bind_group, .. } = self.metatile_resources.get(&id).unwrap();
         rpass.set_bind_group(0, bind_group, &[]);
         rpass.set_pipeline(&self.pipeline);
         rpass.draw(0..(2 * 3 * 4), 0..1);

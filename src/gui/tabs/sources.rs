@@ -2,23 +2,25 @@ use std::path::PathBuf;
 
 use egui::Vec2;
 use egui_extras::{Size, TableBuilder};
-use ulid::Ulid;
 use watch::WatchReceiver;
 
-use crate::gui::{project_state::SourceImageStatus, ProjectState};
+use crate::{
+    gui::{project_state::SourceImageStatus, ProjectState},
+    Uid,
+};
 
 use super::NesimgGuiTab;
 
 pub struct SourcesTab {
     new_source: WatchReceiver<Option<PathBuf>>,
-    update_source: (Ulid, WatchReceiver<Option<PathBuf>>),
+    update_source: (Uid<PathBuf>, WatchReceiver<Option<PathBuf>>),
     preview_zoom: f32,
 }
 
 impl Default for SourcesTab {
     fn default() -> Self {
         Self {
-            update_source: (Ulid::default(), watch::channel(None).1),
+            update_source: (Uid::default(), watch::channel(None).1),
             new_source: watch::channel(None).1,
             preview_zoom: 3.0,
         }

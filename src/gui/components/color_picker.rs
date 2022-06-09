@@ -8,7 +8,7 @@ use super::popup_under_widget;
 const BORDER_RADIUS: f32 = 2.0;
 
 /// Allows you to select a color from the NES pallet
-pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
+pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u32) {
     let i = (*nes_color_index).min(63) as usize;
     let color = NES_PALLET[i];
     let color = egui::Color32::from_rgb(color[0], color[1], color[2]);
@@ -45,7 +45,7 @@ pub fn nes_color_picker(ui: &mut Ui, nes_color_index: &mut u8) {
                 });
 
                 if resp.clicked() {
-                    *nes_color_index = i as u8;
+                    *nes_color_index = i as u32;
                     ui.memory().close_popup();
                 }
             }
