@@ -16,10 +16,10 @@ crate-type = ["cdylib", "rlib"]
 
 
 [dependencies]
-egui = { git = "https://github.com/zicklag/egui", branch = "fix-1715" }
-eframe = { git = "https://github.com/zicklag/egui", branch = "fix-1715", features = ["wgpu", "persistence"], default-features = false }
-egui_extras = { git = "https://github.com/zicklag/egui", branch = "fix-1715", features = ["image"] }
-egui_demo_lib = { git = "https://github.com/zicklag/egui", branch = "fix-1715", features = ["serde"] }
+egui = { git = "https://github.com/emilk/egui", branch = "master" }
+eframe = { git = "https://github.com/emilk/egui", branch = "master", features = ["wgpu", "persistence"], default-features = false }
+egui_extras = { git = "https://github.com/emilk/egui", branch = "master", features = ["image"] }
+egui_demo_lib = { git = "https://github.com/emilk/egui", branch = "master", features = ["serde"] }
 # egui = { path = "../../other/egui/egui" }
 # eframe = { path = "../../other/egui/eframe", features = ["wgpu", "persistence"], default-features = false }
 # egui_extras = { path = "../../other/egui/egui_extras", features = ["image"] }
