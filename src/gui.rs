@@ -6,7 +6,7 @@ use native_dialog::FileDialog;
 use once_cell::sync::Lazy;
 use path_absolutize::Absolutize;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, path::Path, time::Instant};
+use std::{collections::HashMap, io::Read, path::Path, time::Instant};
 use watch::WatchReceiver;
 
 use tracing as trc;
@@ -149,7 +149,8 @@ impl NesimgGui {
         cc.egui_ctx.set_pixels_per_point(gui.pixels_per_point);
 
         if let Some(path) = args.project {
-            gui.state.loaded_project = watch::channel(get_loaded_project(&cc.egui_ctx, &path)).1;
+            gui.state.loaded_project =
+                watch::channel(get_loaded_project(&cc.egui_ctx, &path, true)).1;
         }
 
         gui
@@ -518,19 +519,36 @@ fn open_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> 
             name: "NESImg Projects",
             extensions: &["nesimg"],
         }],
-        move |path| get_loaded_project(&ctx, path),
+        move |path| get_loaded_project(&ctx, path, false),
     );
 
     Ok(())
 }
 
-fn get_loaded_project(ctx: &egui::Context, path: &Path) -> Option<LoadedProject> {
+fn get_loaded_project(
+    ctx: &egui::Context,
+    path: &Path,
+    create_if_not_exists: bool,
+) -> Option<LoadedProject> {
     let inner = || -> anyhow::Result<_> {
-        let file = std::fs::OpenOptions::new()
+        let mut file = std::fs::OpenOptions::new()
             .read(true)
+            .write(true)
+            .create(true)
             .open(path)
             .context("Reading file to load")?;
-        let data: Project = serde_json::from_reader(file).context("Parsing JSON file")?;
+
+        let mut contents = String::new();
+        file.read_to_string(&mut contents)
+            .context("Read project file")?;
+
+        let data: Project;
+        if create_if_not_exists && contents.is_empty() {
+            data = Project::default();
+            serde_json::to_writer_pretty(file, &data).context("Serialize project")?;
+        } else {
+            data = serde_json::from_str(&contents).context("Parsing JSON file")?;
+        }
 
         Ok(Some(LoadedProject {
             data,
