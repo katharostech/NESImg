@@ -44,6 +44,10 @@ impl NesimgGuiTab for MetatilesetsTab {
     fn show(&mut self, project: &mut ProjectState, ctx: &egui::Context, frame: &mut eframe::Frame) {
         if self.current_metatileset_id.is_none() && !project.data.metatilesets.is_empty() {
             self.current_metatileset_id = Some(*project.data.metatilesets.keys().next().unwrap());
+        } else if let Some(id) = &self.current_metatileset_id {
+            if !project.data.metatilesets.contains_key(id) {
+                self.current_metatileset_id = None;
+            }
         }
 
         let sidebar_tab_id = egui::Id::new("metatilesets_sidebar_tab");

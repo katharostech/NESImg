@@ -42,6 +42,10 @@ impl NesimgGuiTab for MetatilesTab {
 
         if self.current_source_image.is_none() && !project.data.sources.is_empty() {
             self.current_source_image = Some(*project.data.sources.keys().next().unwrap());
+        } else if let Some(id) = &self.current_source_image {
+            if !project.data.sources.contains_key(id) {
+                self.current_source_image = None;
+            }
         }
 
         egui::SidePanel::right("metatiles_sidebar")
