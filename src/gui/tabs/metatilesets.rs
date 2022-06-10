@@ -267,11 +267,6 @@ impl MetatilesetsTab {
                                         sub_pallet_idx: 0,
                                     },
                                 );
-
-                                sort_project_metatileset(
-                                    project,
-                                    self.current_metatileset_id.unwrap(),
-                                );
                             }
                         }
 
@@ -561,10 +556,6 @@ impl MetatilesetsTab {
                         response.context_menu(|ui| {
                             if ui.button("🗑 Remove").clicked() {
                                 self.current_metatileset(project).unwrap().tiles.remove(&id);
-                                sort_project_metatileset(
-                                    project,
-                                    self.current_metatileset_id.unwrap(),
-                                );
                                 ui.close_menu();
                             }
                         });
