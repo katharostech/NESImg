@@ -111,7 +111,7 @@ impl<'a> MetatileGui<'a> {
         ];
 
         let colors = match &self.tile {
-            MetatileKind::Standalone { .. } => [0x0F, 0x2D, 0x00, 0x30],
+            MetatileKind::Standalone { .. } => [0x0f, 0x2d, 0x10, 0x30],
             MetatileKind::Metatileset {
                 metatileset_id,
                 metatileset_tile_id,
