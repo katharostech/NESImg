@@ -430,7 +430,7 @@ impl MetatilesetsTab {
                 let min = rect.min + egui::Vec2::new(x as f32, y as f32) * physical_tile_size;
                 let max = min + physical_tile_size;
                 let rect = egui::Rect { min, max };
-                if let Some(tile) = tiles.pop() {
+                if let Some(tile) = tiles.shift_remove_index(0) {
                     let source_image = project.source_images.get_mut(&tile.source_id).unwrap();
                     let source_data =
                         if let SourceImageStatus::Found(data) = source_image.data.get() {
