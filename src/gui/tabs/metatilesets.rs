@@ -396,10 +396,6 @@ impl MetatilesetsTab {
         );
         if progress > 1.0 {
             progress_resp.on_hover_text("⚠ Too many tiles to fit into NES pattern table!");
-        } else {
-            progress_resp.on_hover_text(
-                "The percentage of the pattern table that has been used by the metatileset.",
-            );
         }
 
         ui.separator();
