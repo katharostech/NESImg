@@ -19,7 +19,7 @@ pub struct Project {
     pub metatilesets: IndexMap<Uid<Metatileset>, Metatileset>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, Hash)]
 #[serde(deny_unknown_fields, default)]
 pub struct Tile {
     pub source_id: Uid<PathBuf>,

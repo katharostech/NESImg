@@ -1,6 +1,9 @@
+use indexmap::IndexSet;
+
 use crate::{
     gui::{
         components::{nes_color_picker, MetatileGui, MetatileKind},
+        project_state::SourceImageStatus,
         ProjectState,
     },
     project::Metatileset,
@@ -114,8 +117,7 @@ impl NesimgGuiTab for MetatilesetsTab {
 
                 egui::SidePanel::right("pattern_table")
                     .frame(sidebar_frame)
-                    .min_width(150.0)
-                    .max_width(400.0)
+                    .default_width(100.0)
                     .show_inside(ui, |ui| {
                         self.pattern_table_sidebar(project, ui, frame);
                     });
@@ -342,7 +344,7 @@ impl MetatilesetsTab {
 
     fn pattern_table_sidebar(
         &mut self,
-        _project: &mut ProjectState,
+        project: &mut ProjectState,
         ui: &mut egui::Ui,
         _frame: &mut eframe::Frame,
     ) {
@@ -353,6 +355,90 @@ impl MetatilesetsTab {
             ui.label("Pattern Table");
         });
         ui.separator();
+
+        let max_tiles = 16 * 16;
+        let mut tiles = if let Some(metatileset) = self.current_metatileset(project) {
+            let mut tiles = IndexSet::with_capacity(max_tiles);
+
+            let metatile_ids = metatileset
+                .tiles
+                .values()
+                .map(|x| x.metatile_id)
+                .collect::<Vec<_>>();
+
+            'tiles: for id in metatile_ids {
+                let metatile = project.data.metatiles.get(&id).unwrap();
+                for i in 0..4 {
+                    if let Some(tile) = metatile.tiles[i].as_ref() {
+                        tiles.insert(tile);
+                        if tiles.len() == max_tiles {
+                            break 'tiles;
+                        }
+                    }
+                }
+            }
+
+            tiles
+        } else {
+            return;
+        };
+
+        let progress = tiles.len() as f32 / max_tiles as f32;
+        ui.add(
+            egui::ProgressBar::new(progress)
+                .show_percentage()
+                .text(format!("Percentage Used: {:.1}%", progress * 100.0))
+                .desired_width(ui.available_width()),
+        );
+
+        ui.separator();
+
+        ui.add_space(ui.spacing().item_spacing.y);
+
+        let size = ui.available_width().min(ui.available_height());
+
+        let (rect, _response) =
+            ui.allocate_exact_size(egui::Vec2::splat(size), egui::Sense::hover());
+
+        ui.painter().rect_filled(rect, 0.0, egui::Color32::BLACK);
+
+        let pattern_table_width = 128;
+        let pattern_table_height = pattern_table_width;
+        let tile_size = 8;
+        let tiles_wide = pattern_table_width / tile_size;
+        let tiles_high = pattern_table_height / tile_size;
+        let physical_tile_size = egui::Vec2::splat(rect.width() / tiles_wide as f32 + 0.1);
+
+        for y in 0..tiles_high {
+            for x in 0..tiles_wide {
+                let min = rect.min + egui::Vec2::new(x as f32, y as f32) * physical_tile_size;
+                let max = min + physical_tile_size;
+                let rect = egui::Rect { min, max };
+                if let Some(tile) = tiles.pop() {
+                    let source_image = project.source_images.get_mut(&tile.source_id).unwrap();
+                    let source_data =
+                        if let SourceImageStatus::Found(data) = source_image.data.get() {
+                            data
+                        } else {
+                            ui.painter().rect_filled(rect, 0.0, egui::Color32::BLACK);
+                            continue;
+                        };
+                    let source_size = source_data.texture.size_vec2();
+                    let uv_start = egui::Vec2::new(
+                        tile.x as f32 * 8.0 / source_size.x,
+                        tile.y as f32 * 8.0 / source_size.y,
+                    );
+                    let uv_end = uv_start + egui::Vec2::splat(8.0) / source_size;
+                    let uv = egui::Rect {
+                        min: uv_start.to_pos2(),
+                        max: uv_end.to_pos2(),
+                    };
+                    egui::Image::new(source_data.texture.texture_id(ui.ctx()), rect.size())
+                        .uv(uv)
+                        .paint_at(ui, rect);
+                }
+            }
+        }
     }
 
     fn central_panel(
