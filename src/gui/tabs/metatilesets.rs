@@ -366,14 +366,11 @@ impl MetatilesetsTab {
                 .map(|x| x.metatile_id)
                 .collect::<Vec<_>>();
 
-            'tiles: for id in metatile_ids {
+            for id in metatile_ids {
                 let metatile = project.data.metatiles.get(&id).unwrap();
                 for i in 0..4 {
                     if let Some(tile) = metatile.tiles[i].as_ref() {
                         tiles.insert(tile);
-                        if tiles.len() == max_tiles {
-                            break 'tiles;
-                        }
                     }
                 }
             }
@@ -384,12 +381,31 @@ impl MetatilesetsTab {
         };
 
         let progress = tiles.len() as f32 / max_tiles as f32;
-        ui.add(
+        if progress > 1.0 {
+            let dark = ui.style().visuals.dark_mode;
+            ui.style_mut().visuals.selection.bg_fill = if dark {
+                egui::Color32::DARK_RED
+            } else {
+                egui::Color32::RED
+            };
+        }
+        let progress_resp = ui.add(
             egui::ProgressBar::new(progress)
                 .show_percentage()
-                .text(format!("Percentage Used: {:.1}%", progress * 100.0))
+                .text(format!(
+                    "{}Percentage Used: {:.1}%",
+                    if progress > 1.0 { "⚠ " } else { "" },
+                    progress * 100.0
+                ))
                 .desired_width(ui.available_width()),
         );
+        if progress > 1.0 {
+            progress_resp.on_hover_text("⚠ Too many tiles to fit into NES pattern table!");
+        } else {
+            progress_resp.on_hover_text(
+                "The percentage of the pattern table that has been used by the metatileset.",
+            );
+        }
 
         ui.separator();
 
