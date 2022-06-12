@@ -370,7 +370,7 @@ impl MapsTab {
                 let tiles = level
                     .tiles
                     .iter()
-                    .map(|(pos, tile)| (pos.clone(), tile.clone()))
+                    .map(|(pos, tile)| (*pos, tile.clone()))
                     .collect::<Vec<_>>();
 
                 for ((level_x, level_y), tile) in tiles {

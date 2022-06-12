@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::Uid;
 
 /// The actual project structure, as serialized to JSON for the project file
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct Project {
     /// The source images
@@ -97,7 +97,7 @@ impl Pallet {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 /// Levels are stored as a map of integer (x, y) positions on the map, and the tile at that
 /// position. These tiles may actually be outside of map bounds.
