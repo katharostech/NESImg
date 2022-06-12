@@ -97,4 +97,37 @@ impl ProjectState {
             })
             .collect();
     }
+
+    /// Cleans up items with UID's pointing to non-existent objects. This happens when, for
+    /// instance, we delete a metatile that is contained in a metatileset or other similar
+    /// scenarios.
+    pub fn cleanup_dead_refs(&mut self) {
+        for metatile in self.data.metatiles.values_mut() {
+            for possible_tile in &mut metatile.tiles {
+                if let Some(tile) = possible_tile {
+                    if !self.data.sources.contains_key(&tile.source_id) {
+                        *possible_tile = None;
+                    }
+                }
+            }
+        }
+
+        for metatileset in self.data.metatilesets.values_mut() {
+            metatileset
+                .tiles
+                .retain(|_, tile| self.data.metatiles.contains_key(&tile.metatile_id));
+        }
+
+        for level in self.data.levels.values_mut() {
+            if let Some(metatileset) = self.data.metatilesets.get(&level.metatileset_id) {
+                level
+                    .tiles
+                    .retain(|_, tile| metatileset.tiles.contains_key(&tile.metatileset_tile_id));
+            } else {
+                // TODO: metatileset_id should be an option I think
+                level.metatileset_id = Uid::default();
+                level.tiles = Default::default();
+            }
+        }
+    }
 }

@@ -410,6 +410,8 @@ impl eframe::App for NesimgGui {
 
         // Render the actual tab contents
         if let Some(project) = &mut self.state.project {
+            // TODO: Do this only when deleting things?
+            project.cleanup_dead_refs();
             for (name, tab) in &mut self.tabs {
                 if name == &self.current_tab {
                     tab.show(project, ctx, frame);
@@ -493,7 +495,8 @@ fn new_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> {
 
                 let data = Project::default();
 
-                serde_json::to_writer_pretty(file, &data).context("Serialize project to JSON")?;
+                ron::ser::to_writer_pretty(file, &data, Default::default())
+                    .context("Serialize project to JSON")?;
 
                 sender.send(Some(LoadedProject {
                     data,
@@ -545,9 +548,10 @@ fn get_loaded_project(
         let data: Project;
         if create_if_not_exists && contents.is_empty() {
             data = Project::default();
-            serde_json::to_writer_pretty(file, &data).context("Serialize project")?;
+            ron::ser::to_writer_pretty(file, &data, Default::default())
+                .context("Serialize project")?;
         } else {
-            data = serde_json::from_str(&contents).context("Parsing JSON file")?;
+            data = ron::de::from_str(&contents).context("Parsing JSON file")?;
         }
 
         Ok(Some(LoadedProject {
@@ -585,7 +589,8 @@ fn save_project(gui: &mut NesimgGui, ctx: &egui::Context) -> anyhow::Result<()> 
         .open(project_path)
         .context("Open file to save")?;
 
-    serde_json::to_writer_pretty(file, &project_data).context("Serialize project to JSON")?;
+    ron::ser::to_writer_pretty(file, &project_data, Default::default())
+        .context("Serialize project to RON")?;
 
     send_info_notification(ctx, "Save successful");
 

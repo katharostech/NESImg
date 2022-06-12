@@ -248,7 +248,7 @@ impl MetatilesetsTab {
                         }
 
                         MetatileGui::new(project, MetatileKind::Standalone(id))
-                            .show_at(rect, ui, frame);
+                            .paint_at(rect, ui, frame);
 
                         if response.hovered() {
                             ui.painter().rect_stroke(
@@ -524,7 +524,7 @@ impl MetatilesetsTab {
                                 metatileset_tile_id: id,
                             },
                         )
-                        .show_at(rect, ui, frame);
+                        .paint_at(rect, ui, frame);
 
                         if response.hovered() {
                             ui.painter().rect_stroke(

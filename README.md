@@ -5,6 +5,7 @@ An extremely work-in-progress tool for making NES/Famicom-compatible images.
 ![screenshotSources](docs/nesimgSources.png)
 ![screenshotMetatiles](docs/nesimgMetatiles.png)
 ![screenshotMetatilesets](docs/nesimgMetatilesets.png)
+![screenshotMaps](docs/nesimgMaps.png)
 
 When faced with the challenge of formatting artwork in a way that it can be rendered on the NES, you run into many different limitations. For instance:
 
@@ -49,7 +50,7 @@ NESImg is currently experimental. Currently working and non-working features:
 - [x] Collecting metatiles into metatilesets
 - [x] Coloring metatiles in metatilesets
 - [x] Generating pattern tables
-- [ ] Creating map levels
+- [x] Creating map levels
 - [ ] De-duplicating tiles in pattern table
 - [ ] Exporting pattern tables, attribute tables, and map levels
 

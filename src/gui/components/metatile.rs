@@ -56,7 +56,7 @@ impl<'a> MetatileGui<'a> {
     //     self.show_at(rect, ui, frame);
     // }
 
-    pub fn show_at(&mut self, rect: egui::Rect, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+    pub fn paint_at(&mut self, rect: egui::Rect, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let render_state = frame.render_state.clone().expect("WGPU not enabled");
 
         Renderer::ensure_init(&render_state);

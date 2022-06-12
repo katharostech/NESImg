@@ -44,6 +44,7 @@ path-absolutize = "3.0.13"
 pathdiff = "0.2.1"
 encase = { version = "0.2.0", features = ["glam"] }
 glam = "0.20.5"
+ron = { version = "0.7.0", features = ["indexmap"] }
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use crate::Uid;
 
 /// The actual project structure, as serialized to JSON for the project file
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
 #[serde(deny_unknown_fields, default)]
 pub struct Project {
     /// The source images
@@ -17,6 +17,8 @@ pub struct Project {
     pub metatiles: IndexMap<Uid<Metatile>, Metatile>,
     /// The metatilesets
     pub metatilesets: IndexMap<Uid<Metatileset>, Metatileset>,
+    /// The levels that make up the project map
+    pub levels: IndexMap<Uid<Level>, Level>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default, Hash)]
@@ -93,4 +95,68 @@ impl Pallet {
             [c[0], c[10], c[11], c[12]],
         ]
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+/// Levels are stored as a map of integer (x, y) positions on the map, and the tile at that
+/// position. These tiles may actually be outside of map bounds.
+///
+/// The map bounds are specified as a margin, which specifies the distance the top, bottom, left,
+/// and right sides of the map are from its center.
+pub struct Level {
+    pub name: String,
+    pub metatileset_id: Uid<Metatileset>,
+    pub margin: LevelMargin,
+    pub tiles: IndexMap<(i32, i32), LevelTile>,
+    /// Used in the GUI to organize the levels
+    pub world_offset: egui::Vec2,
+}
+
+impl Default for Level {
+    fn default() -> Self {
+        Self {
+            name: "New Level".into(),
+            metatileset_id: Default::default(),
+            margin: Default::default(),
+            tiles: IndexMap::with_capacity(16 * 16),
+            world_offset: Default::default(),
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields, default)]
+pub struct LevelMargin {
+    pub top: i32,
+    pub right: i32,
+    pub bottom: i32,
+    pub left: i32,
+}
+
+impl Default for LevelMargin {
+    fn default() -> Self {
+        Self {
+            top: 8,
+            right: 8,
+            bottom: 8,
+            left: 8,
+        }
+    }
+}
+
+impl LevelMargin {
+    pub fn width(&self) -> i32 {
+        self.left + self.right
+    }
+
+    pub fn height(&self) -> i32 {
+        self.top + self.bottom
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(deny_unknown_fields, default)]
+pub struct LevelTile {
+    pub metatileset_tile_id: Uid<MetatilesetTile>,
 }
