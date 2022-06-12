@@ -1,4 +1,8 @@
-# NESImg
+<h1 align="center">NESImg
+<div align="center">
+<img src="./docs/logo.png"/>
+</div>
+</h1>
 
 An extremely work-in-progress tool for making NES/Famicom-compatible images.
 
@@ -51,10 +55,13 @@ NESImg is currently experimental. Currently working and non-working features:
 - [x] Coloring metatiles in metatilesets
 - [x] Generating pattern tables
 - [x] Creating map levels
-- [ ] De-duplicating tiles in pattern table
-- [ ] Exporting pattern tables, attribute tables, and map levels
+- [ ] De-duplicating tiles in the pattern table ( easy )
+- [ ] Exporting pattern tables, attribute tables, and map levels ( easy )
+- [ ] NES library for loading maps ( hard )
+- [ ] Sprite/animation editor ( hard )
+- [ ] Placeable entities such as enemies, doors, etc. ( moderate )
 
-If my time permits, I will continue working on finishing the functionality and adding a sprite editor, add the ability to place entities on the map, add an NES library for loading and rendering the map, etc.
+In summary, it can be used for designing maps that follow all the restrictions and rules of the NES, but there isn't a library for loading the maps in an NES game yet.
 
 ## License
 
