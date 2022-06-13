@@ -258,7 +258,7 @@ impl MetatilesetsTab {
                             );
                         }
 
-                        if response.double_clicked() {
+                        if response.clicked() {
                             if let Some(metatileset) = self.current_metatileset(project) {
                                 metatileset.tiles.insert(
                                     Uid::new(),
@@ -270,7 +270,7 @@ impl MetatilesetsTab {
                             }
                         }
 
-                        response.on_hover_text("Double-click to add to metatileset");
+                        response.on_hover_text("Click to add to metatileset");
                     }
                 });
                 ui.add_space(ui.spacing().item_spacing.y);
