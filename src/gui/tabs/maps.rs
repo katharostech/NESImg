@@ -303,31 +303,22 @@ impl MapsTab {
 
         let pointer_pos = ui.input().pointer.interact_pos();
 
-        // Add context menu
-        response = response.context_menu(|ui| {
-            if ui.button("➕ Create Level").clicked() {
-                ui.close_menu();
-
-                if let Some(pos) = pointer_pos {
-                    let world_pos =
-                        (pos.to_vec2() - canvas_center.to_vec2() - self.pan) / self.zoom;
-
-                    // Add new level
-                    let id = Uid::new();
-                    project.data.levels.insert(
-                        id,
-                        Level {
-                            world_offset: world_pos,
-                            ..Default::default()
-                        },
-                    );
-                    self.current_level = Some(id);
-                }
-            }
-        });
-
-        let mut new_tile = None;
+        enum TileAction {
+            None,
+            AddTile {
+                level_id: Uid<Level>,
+                pos: (i32, i32),
+                tile: LevelTile,
+            },
+            EraseTile {
+                level_id: Uid<Level>,
+                pos: (i32, i32),
+            },
+        }
+        let mut tile_action = TileAction::None;
         let level_ids = project.data.levels.keys().cloned().collect::<Vec<_>>();
+
+        let mut mouse_over_level = false;
         for id in level_ids {
             let level = project.data.levels.get(&id).unwrap();
             let level_margin = level.margin;
@@ -404,6 +395,10 @@ impl MapsTab {
             let pointer_within_label = pointer_pos.map(|x| label_rect.contains(x)).unwrap_or(false);
             let pointer_within_level = pointer_pos.map(|x| level_rect.contains(x)).unwrap_or(false);
 
+            if pointer_within_level {
+                mouse_over_level = true;
+            }
+
             // Check drag state and update cursor
             if response.dragged_by(egui::PointerButton::Primary)
                 && response.drag_started()
@@ -439,7 +434,20 @@ impl MapsTab {
 
                 let tile_rect = egui::Rect::from_min_size(pointer_xy, tile_size);
 
-                if let Some(metatileset_tile_id) = self.current_metatileset_tile {
+                let tile_xy_idx = (pointer_uv * level_size_in_tiles).floor();
+                let level_x_idx = -level_margin.left + tile_xy_idx.x as i32;
+                let level_y_idx = -level_margin.top + tile_xy_idx.y as i32;
+
+                if ui
+                    .input()
+                    .pointer
+                    .button_down(egui::PointerButton::Secondary)
+                {
+                    tile_action = TileAction::EraseTile {
+                        level_id: id,
+                        pos: (level_x_idx, level_y_idx),
+                    };
+                } else if let Some(metatileset_tile_id) = self.current_metatileset_tile {
                     MetatileGui::new(
                         project,
                         MetatileKind::Metatileset {
@@ -449,18 +457,17 @@ impl MapsTab {
                     )
                     .paint_at(tile_rect, ui, frame);
 
+                    let tile_xy_idx = (pointer_uv * level_size_in_tiles).floor();
+                    let level_x_idx = -level_margin.left + tile_xy_idx.x as i32;
+                    let level_y_idx = -level_margin.top + tile_xy_idx.y as i32;
                     if ui.input().pointer.button_down(egui::PointerButton::Primary) {
-                        let tile_xy_idx = (pointer_uv * level_size_in_tiles).floor();
-                        let level_x_idx = -level_margin.left + tile_xy_idx.x as i32;
-                        let level_y_idx = -level_margin.top + tile_xy_idx.y as i32;
-
-                        new_tile = Some((
-                            id,
-                            (level_x_idx, level_y_idx),
-                            LevelTile {
+                        tile_action = TileAction::AddTile {
+                            level_id: id,
+                            pos: (level_x_idx, level_y_idx),
+                            tile: LevelTile {
                                 metatileset_tile_id,
                             },
-                        ));
+                        };
                     }
                 }
             }
@@ -477,10 +484,45 @@ impl MapsTab {
             );
         }
 
+        if !mouse_over_level {
+            response = response.context_menu(|ui| {
+                if ui.button("➕ Create Level").clicked() {
+                    ui.close_menu();
+
+                    if let Some(pos) = pointer_pos {
+                        let world_pos =
+                            (pos.to_vec2() - canvas_center.to_vec2() - self.pan) / self.zoom;
+
+                        // Add new level
+                        let id = Uid::new();
+                        project.data.levels.insert(
+                            id,
+                            Level {
+                                world_offset: world_pos,
+                                ..Default::default()
+                            },
+                        );
+                        self.current_level = Some(id);
+                    }
+                }
+            });
+        }
+
         // Add a new tile if one was place
-        if let Some((level_id, pos, tile)) = new_tile {
-            let level = project.data.levels.get_mut(&level_id).unwrap();
-            level.tiles.insert(pos, tile);
+        match tile_action {
+            TileAction::AddTile {
+                level_id,
+                pos,
+                tile,
+            } => {
+                let level = project.data.levels.get_mut(&level_id).unwrap();
+                level.tiles.insert(pos, tile);
+            }
+            TileAction::EraseTile { level_id, pos } => {
+                let level = project.data.levels.get_mut(&level_id).unwrap();
+                level.tiles.remove(&pos);
+            }
+            TileAction::None => (),
         }
 
         // Clear drag state if not dragging
